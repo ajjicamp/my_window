@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1133</width>
+    <height>750</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_10" columnstretch="200,100,100">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="market">
+      <property name="currentIndex">
+       <number>2</number>
+      </property>
+      <widget class="QWidget" name="kospi">
+       <attribute name="title">
+        <string>kospi</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="0">
+         <widget class="PlotWidget" name="kospichart"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="kosdaq">
+       <attribute name="title">
+        <string>kosdaq</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_6">
+        <item row="0" column="0">
+         <widget class="QGraphicsView" name="kosdaqchart"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="future">
+       <attribute name="title">
+        <string>선물</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_9">
+        <item row="0" column="0">
+         <widget class="QGraphicsView" name="futurechart"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="0" column="1" rowspan="2">
+     <widget class="QGroupBox" name="hoga_order">
+      <property name="title">
+       <string>호가주문</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_8">
+       <item row="0" column="0">
+        <widget class="QTableWidget" name="hogawindow"/>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="0" column="2" rowspan="2">
+     <widget class="QWidget" name="widget" native="true">
+      <layout class="QGridLayout" name="gridLayout_4" rowstretch="100,400">
+       <item row="1" column="0">
+        <widget class="QTabWidget" name="gwansim">
+         <property name="currentIndex">
+          <number>1</number>
+         </property>
+         <widget class="QWidget" name="tab_gwansim">
+          <attribute name="title">
+           <string>관심종목</string>
+          </attribute>
+          <layout class="QGridLayout" name="gridLayout_3">
+           <item row="0" column="0">
+            <widget class="QTableWidget" name="table_gwansim">
+             <property name="alternatingRowColors">
+              <bool>true</bool>
+             </property>
+             <property name="rowCount">
+              <number>20</number>
+             </property>
+             <property name="columnCount">
+              <number>5</number>
+             </property>
+             <attribute name="horizontalHeaderCascadingSectionResizes">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="horizontalHeaderDefaultSectionSize">
+              <number>95</number>
+             </attribute>
+             <attribute name="horizontalHeaderHighlightSections">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="horizontalHeaderStretchLastSection">
+              <bool>true</bool>
+             </attribute>
+             <attribute name="verticalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <column>
+              <property name="text">
+               <string>종목명</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>현재가</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>대비</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>등락율</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>거래량</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="tab_account">
+          <attribute name="title">
+           <string>계좌잔고</string>
+          </attribute>
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="0" column="0">
+            <widget class="QTableWidget" name="table_account">
+             <property name="alternatingRowColors">
+              <bool>true</bool>
+             </property>
+             <property name="rowCount">
+              <number>20</number>
+             </property>
+             <property name="columnCount">
+              <number>7</number>
+             </property>
+             <attribute name="horizontalHeaderDefaultSectionSize">
+              <number>90</number>
+             </attribute>
+             <attribute name="verticalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <column>
+              <property name="text">
+               <string>종목명</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>보유수량</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>매입가</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>현재가</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>수익률</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>평가손익</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>평가금액</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="tab_acc_p">
+          <attribute name="title">
+           <string>계좌평가</string>
+          </attribute>
+          <layout class="QGridLayout" name="gridLayout_11">
+           <item row="0" column="0">
+            <widget class="QTableWidget" name="tableWidget">
+             <property name="rowCount">
+              <number>16</number>
+             </property>
+             <property name="columnCount">
+              <number>10</number>
+             </property>
+             <attribute name="verticalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+             <row>
+              <property name="text">
+               <string/>
+              </property>
+             </row>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <row/>
+             <column>
+              <property name="text">
+               <string>계좌번호</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>추정에수금</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>수익률</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>평가손익</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>매입금액</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>평가금액</string>
+              </property>
+             </column>
+             <column/>
+             <column/>
+             <column/>
+             <column/>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QTabWidget" name="control">
+         <property name="currentIndex">
+          <number>1</number>
+         </property>
+         <widget class="QWidget" name="tab_4">
+          <attribute name="title">
+           <string>수신로그</string>
+          </attribute>
+         </widget>
+         <widget class="QWidget" name="tab_5">
+          <attribute name="title">
+           <string>모드설정</string>
+          </attribute>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QTabWidget" name="code_chart">
+      <property name="currentIndex">
+       <number>1</number>
+      </property>
+      <widget class="QWidget" name="teb_daily">
+       <attribute name="title">
+        <string>일봉</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_5">
+        <item row="0" column="0">
+         <widget class="PlotWidget" name="day_chart"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_weekly">
+       <attribute name="title">
+        <string>분봉</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_7">
+        <item row="0" column="0">
+         <widget class="QGraphicsView" name="weekly_chart"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1133</width>
+     <height>21</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QGraphicsView</extends>
+   <header>pyqtgraph</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
