@@ -1,168 +1,162 @@
 import sys
-from PyQt5 import QtWidgets, QAxContainer
+import queue
+from PyQt5.QtWidgets import *
+from PyQt5.QAxContainer import *
+import pythoncom
+import datetime
+import parser
+from RealType import *
+import pandas as pd
+import time
+import logging
 
-app = QtWidgets.QApplication(sys.argv)
+# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
-class worker:
-    def __init__(self):
-        self.bool_conn = False
-        self.bool_cdload = False
-        self.bool_trcdload = False
-        self.bool_trremained = True
+class Worker:
+    def __init__(self, data_queue, login=False):
+        if not QApplication.instance():
+            app = QApplication(sys.argv)
 
-        self.ocx = QAxContainer.QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
-        self.ocx.OnEventConnect.connect(self._h_login)
-        self.ocx.OnReceiveTrData.connect(self._h_tran_data)
-        self.ocx.OnReceiveRealData.connect(self._h_real_data)
-        self.ocx.OnReceiveChejanData.connect(self._h_cjan_data)
-        self.ocx.OnReceiveTrCondition.connect(self._h_cond_data)
-        self.ocx.OnReceiveConditionVer.connect(self._h_cond_load)
-        self.ocx.OnReceiveRealCondition.connect(self._h_real_cond)
-        self.Start()
+        self.data_queue = data_queue
+        self.connected = False              # for login event
+        self.received = False               # for tr event
+        self.tr_remained = False
+        self.condition_loaded = False
 
-    def _h_login(self, err_code):
+        self.tr_items = None                # tr input/output items
+        self.tr_data = None                 # tr output data
+        self.tr_record = None
+
+        self.realType = RealType()        # class 인스턴스
+        self.real_data_dict = {}
+        self.real_data_df = {}           # 딕셔너리의 값에 DataFrame을 저장할 변수
+
+        self.list_kosd = None
+        self.code_list = None
+
+        # 조건식때문에 작동하지 않는다. 언제 작동하려고 준비한건지
+        # if login:
+        #     self.CommConnect()
+        self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
+        # self._set_signals_slots()
+        self.ocx.OnEventConnect.connect(self._handler_login)
+        self.ocx.OnReceiveTrData.connect(self._handler_tr)
+        self.ocx.OnReceiveRealData.connect(self._handler_real)
+        self.ocx.OnReceiveConditionVer.connect(self._handler_condition_load)
+        self.ocx.OnReceiveTrCondition.connect(self._handler_tr_condition)
+        self.ocx.OnReceiveMsg.connect(self._handler_msg)
+        self.ocx.OnReceiveChejanData.connect(self._handler_chejan)
+
+        self.start()
+
+    def start(self):
+        self.CommConnect(block=True)
+        self.list_kosd = self.GetCodeListByMarket("10")
+        self.GetCondition()
+        self.SetRealReg("1001", self.code_list, "20;41", "0")
+
+        # print('work start')
+
+    def GetCondition(self):
+        # 조건식 load
+        self.GetConditionLoad()
+        conditions = self.GetConditionNameList()
+        # 0번 조건식에 해당하는 종목 리스트 출력
+        condition_index = conditions[0][0]
+        condition_name = conditions[0][1]
+        codes = self.SendCondition("0101", condition_name, condition_index, 0)
+        print('종목코드: ', len(codes), codes)
+        self.code_list = codes
+
+
+    def _handler_login(self, err_code):
+        logging.info(f"hander login {err_code}")
         if err_code == 0:
-            self.bool_conn = True
+            self.connected = True
 
-    def _h_cond_load(self, ret, msg):
-        if msg == "":
-            return
+    def _handler_condition_load(self, ret, msg):
         if ret == 1:
-            self.bool_cdload = True
+            self.condition_loaded = True
 
-    def _h_cond_data(self, screen, code_list, cond_name, cond_index, nnext):
-        if screen == "" and cond_name == "" and cond_index == "" and nnext == "":
-            return
+    def _handler_tr_condition(self, screen_no, code_list, cond_name, cond_index, next):
         codes = code_list.split(';')[:-1]
-        self.list_trcddata = codes
-        self.bool_trcdload = True
+        self.tr_condition_data = codes
+        self.tr_condition_loaded= True
 
-    def _h_tran_data(self, screen, rqname, trcode, record, nnext):
-        if screen == "" and record == "":
-            return
-        self.windowQ.put([1, f"TR 조회 수신 알림 {rqname} {trcode}"])
-        items = None
-        if nnext == '2':
-            self.bool_trremained = True
-        else:
-            self.bool_trremained = False
-        for output in self.list_tritems['output']:
-            record = list(output.keys())[0]
-            items = list(output.values())[0]
-            if record == self.list_trrecord:
-                break
-        rows = self.ocx.dynamicCall("GetRepeatCnt(QString, QString)", trcode, rqname)
-        if rows == 0:
-            rows = 1
-        df2 = []
-        for row in range(rows):
-            row_data = []
-            for item in items:
-                data = self.ocx.dynamicCall("GetCommData(QString, QString, int, QString)", trcode, rqname, row,
-                                            item)
-                row_data.append(data.strip())
-            df2.append(row_data)
-        df = pd.DataFrame(data=df2, columns=items)
-        self.df_trdata = df
-        self.bool_received = True
+    def _handler_tr(self, screen, rqname, trcode, record, next):
+        logging.info(f"OnReceiveTrData {screen} {rqname} {trcode} {record} {next}")
+        try:
+            record = None
+            items = None
 
-    def _h_real_cond(self, code, IorD, cname, cindex):
-        if cname == "":
-            return
-        self.int_ctcr += 1
-        name = self.GetMasterCodeName(code)
-        if IorD == "I":
-            if cindex == "1" and code not in self.df_gs.index:
-                self.df_gs = self.df_gs.append(pd.DataFrame({
-                    '종목명': [name], 'HMP': [0], '현재가': [0], '등락율': [0], '거래대금': [0], '증감비율': [0],
-                    '체결강도': [0], '종목코드': [code], '시가': [0], '고가': [0], '저가': [0], '전일종가': [0],
-                    'HML': [0]}, index=[code]))
-            elif cindex == "2" and code in self.df_gs.index:
-                c = self.df_gs['현재가'][code]
-                if c != 0:
-                    self.CheckCasbuy('rc', code, name, "", c)
-            elif cindex in ["7", "8"]:
-                self.CheckBnfsell(code, name, cindex)
-        elif IorD == "D":
-            if cindex == "1" and code in self.df_gs.index:
-                self.df_gs.drop(index=code, inplace=True)
-                if code not in self.df_jg.index:
-                    self.workerQ.put(["ALL", code])
-
-    def _h_real_data(self, code, realtype, realdata):
-        if realdata == "":
-            return
-        if realtype == "장시작시간":
-            try:
-                self.int_oper = int(self.GetCommRealData(code, 215))
-                current = self.GetCommRealData(code, 20)
-                remain = self.GetCommRealData(code, 214)
-            except Exception as e:
-                self.log.info(f"[{strtime()}] _h_real_data 장시작시간 {e}")
+            # remained data
+            if next == '2':
+                self.tr_remained = True
             else:
-                if self.int_oper == 3:
-                    self.CjTtTdInit()
-                if self.bool_sound:
-                    if current == "084000":
-                        self.soundQ.put("장시작 20분 전입니다.")
-                    elif current == "085000":
-                        self.soundQ.put("장시작 10분 전입니다.")
-                    elif current == "085500":
-                        self.soundQ.put("장시작 5분 전입니다.")
-                    elif current == "085900":
-                        self.soundQ.put("장시작 1분 전입니다.")
-                    elif current == "085930":
-                        self.soundQ.put("장시작 30초 전입니다.")
-                    elif current == "085950":
-                        self.soundQ.put("장시작 10초 전입니다.")
-                    elif current == "090000":
-                        self.soundQ.put(f"{self.str_tday[:4]}년 {self.str_tday[4:6]}월 {self.str_tday[6:]}일 "
-                                        "장이 시작되었습니다.")
-                    elif current == "152000":
-                        self.soundQ.put("장마감 10분 전입니다.")
-                    elif current == "153000":
-                        self.soundQ.put(f"{self.str_tday[:4]}년 {self.str_tday[4:6]}월 {self.str_tday[6:]}일 "
-                                        "장이 종료되었습니다.")
-                else:
-                    self.windowQ.put([1, f"장운영시간 알림 {self.int_oper} {current[:2]}:{current[2:4]}:{current[4:]} "
-                                         f"남은시간 {remain[:2]}:{remain[2:4]}:{remain[4:]}"])
-        elif realtype == "업종지수":
-            try:
-                d = self.GetCommRealData(code, 20)
-                c = abs(int(float(self.GetCommRealData(code, 10)) * 100))
-            except Exception as e:
-                self.log.info(f"[{strtime()}] _h_real_data 업종지수 {e}")
-            else:
-                if d not in ['장마감', '장종료']:
-                    if code == "001":
-                        self.chartQ.put(['코스피현재가', d, c])
-                    elif code == "101":
-                        self.chartQ.put(['코스닥현재가', d, c])
-        elif realtype == "주식체결":
-            self.int_ctjc += 1
-            self.int_ctrjc += 1
+                self.tr_remained = False
+
+            for output in self.tr_items['output']:
+                record = list(output.keys())[0]
+                items = list(output.values())[0]
+                if record == self.tr_record:
+                    break
+
+            rows = self.GetRepeatCnt(trcode, rqname)
+            if rows == 0:
+                rows = 1
+
+            data_list = []
+            for row in range(rows):
+                row_data = []
+                for item in items:
+                    data = self.GetCommData(trcode, rqname, row, item)
+                    row_data.append(data)
+                data_list.append(row_data)
+
+            # data to DataFrame
+            df = pd.DataFrame(data=data_list, columns=items)
+            self.tr_data = df
+            self.received = True
+        except:
+            pass
+
+    def _handler_real(self, code, realtype, realdata):
+
+        # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
+
+        self.real_data_dict = {}
+        self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
+
+        if realtype == "주식체결":
             try:
                 c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
-                per = float(self.GetCommRealData(code, 12))   # 등락율 percent
-                vp = abs(int(float(self.GetCommRealData(code, 30))))    # 전일거래량대비율 volume percent
-                ch = int(float(self.GetCommRealData(code, 228)))    # 체결강도 chaegyeol height
-                m = int(self.GetCommRealData(code, 14))     # 누적거래대금
-                o = abs(int(self.GetCommRealData(code, 16)))    # 시가 open
-                h = abs(int(self.GetCommRealData(code, 17)))    # 고가 high
-                ll = abs(int(self.GetCommRealData(code, 18)))   # 저가 low
-                prec = self.GetMasterLastPrice(code)    # 전일종가?          ===> 전일대비를 이용하면 될텐데 즉, c - 11
-                v = int(self.GetCommRealData(code, 15)) # volume 거래량
+                per = float(self.GetCommRealData(code, 12))  # 등락율 percent
+                vp = abs(int(float(self.GetCommRealData(code, 30))))  # 전일거래량대비율 volume percent
+                ch = int(float(self.GetCommRealData(code, 228)))  # 체결강도 chaegyeol height
+                m = int(self.GetCommRealData(code, 14))  # 누적거래대금 mount
+                o = abs(int(self.GetCommRealData(code, 16)))  # 시가 open
+                h = abs(int(self.GetCommRealData(code, 17)))  # 고가 high
+                ll = abs(int(self.GetCommRealData(code, 18)))  # 저가 low
+                prec = self.GetMasterLastPrice(code)  # pre price 전일종가?          ===> 전일대비를 이용하면 될텐데 즉, c - 11
+                v = int(self.GetCommRealData(code, 15))  # volume 거래량
                 d = self.GetCommRealData(code, 20)  # 체결시간 datetime
-                name = self.GetMasterCodeName(code)     # 종목명
+                name = self.GetMasterCodeName(code)  # 종목명
+
             except Exception as e:
-                self.log.info(f"[{strtime()}] _h_real_data 주식체결 {e}")
+                print('에러발생:', e)
+                # self.log.info(f"[{strtime()}] _h_real_data 주식체결 {e}")
+
             else:
-                self.UpdateJusicchegeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+                self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+
         elif realtype == "주식호가잔량":
-            self.int_cthj += 1
-            self.int_ctrhj += 1
+
+            # self.int_cthj += 1
+            # self.int_ctrhj += 1
             try:
-                vp = [
+                # 직전대비
+                hg_cp = [
                     int(float(self.GetCommRealData(code, 139))),
                     int(self.GetCommRealData(code, 90)),
                     int(self.GetCommRealData(code, 89)),
@@ -186,7 +180,9 @@ class worker:
                     int(self.GetCommRealData(code, 100)),
                     int(float(self.GetCommRealData(code, 129)))
                 ]
-                jc = [
+
+                # 호가수량
+                hg_q = [
                     int(self.GetCommRealData(code, 121)),
                     int(self.GetCommRealData(code, 70)),
                     int(self.GetCommRealData(code, 69)),
@@ -210,6 +206,8 @@ class worker:
                     int(self.GetCommRealData(code, 80)),
                     int(self.GetCommRealData(code, 125))
                 ]
+
+                # 호가(금액)
                 hg = [
                     self.GetSanghanga(code),
                     abs(int(self.GetCommRealData(code, 50))),
@@ -260,28 +258,383 @@ class worker:
                     round((hg[21] / prec - 1) * 100, 2)
                 ]
             except Exception as e:
-                self.log.info(f"[{strtime()}] _h_real_data 주식호가잔량 {e}")
+                # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
+                logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
             else:
-                self.UpdateHogajanryangData(code, vp, jc, hg, per)
+                self.UpdateHogaData(code, hg_cp, hg_q, hg, per)
 
-    def _h_cjan_data(self, gubun, itemcnt, fidlist):
-        if gubun != "0" and itemcnt != "" and fidlist != "":
-            return
-        on = self.GetChejanData(9203)
-        if on == "":
-            return
-        self.int_ctcj += 1
-        code = self.GetChejanData(9001).strip('A')
-        name = self.GetChejanData(302).strip(" ").strip("'")
-        og = self.GetChejanData(905)[1:]
-        ot = self.GetChejanData(913)
-        oc = int(self.GetChejanData(900))
-        omc = int(self.GetChejanData(902))
-        d = int(self.str_tday + self.GetChejanData(908))
-        op = int(self.GetChejanData(901))
-        oon = self.GetChejanData(904)
-        try:
-            cp = int(self.GetChejanData(910))
-        except ValueError:
-            cp = 0
-        self.UpdateChejanData(code, name, on, og, ot, oc, omc, d, op, cp, oon)
+    def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
+        pass
+
+    def UpdateHogaData(self, code, hg_cp, hg_q, hg, per):
+        pass
+
+    def GetSanghanga(self, code):
+        predayclose = self.GetMasterLastPrice(code)
+        kosdaq = code in self.list_kosd
+        uplimitprice = int(predayclose * 1.30)
+        if uplimitprice < 1000:
+            x = 1
+        elif 1000 <= uplimitprice < 5000:
+            x = 5
+        elif 5000 <= uplimitprice < 10000:
+            x = 10
+        elif 10000 <= uplimitprice < 50000:
+            x = 50
+        elif kosdaq:
+            x = 100
+        elif 50000 <= uplimitprice < 100000:
+            x = 100
+        elif 100000 <= uplimitprice < 500000:
+            x = 500
+        else:
+            x = 1000
+        return uplimitprice - uplimitprice % x
+
+    def GetHahanga(self, code):
+        predayclose = self.GetMasterLastPrice(code)
+        kosdaq = code in self.list_kosd
+        downlimitprice = int(predayclose * 0.70)
+        if downlimitprice < 1000:
+            x = 1
+        elif 1000 <= downlimitprice < 5000:
+            x = 5
+        elif 5000 <= downlimitprice < 10000:
+            x = 10
+        elif 10000 <= downlimitprice < 50000:
+            x = 50
+        elif kosdaq:
+            x = 100
+        elif 50000 <= downlimitprice < 100000:
+            x = 100
+        elif 100000 <= downlimitprice < 500000:
+            x = 500
+        else:
+            x = 1000
+        return downlimitprice + (x - downlimitprice % x)
+
+    def _handler_msg(self, screen, rqname, trcode, msg):
+        logging.info(f"OnReceiveMsg {screen} {rqname} {trcode} {msg}")
+
+    def _handler_chejan(self, gubun, item_cnt, fid_list):
+        logging.info(f"OnReceiveChejanData {gubun} {item_cnt} {fid_list}")
+
+    #-------------------------------------------------------------------------------------------------------------------
+    # OpenAPI+ 메서드
+    #-------------------------------------------------------------------------------------------------------------------
+    def CommConnect(self, block=True):
+        """
+        로그인 윈도우를 실행합니다.
+        :param block: True: 로그인완료까지 블록킹 됨, False: 블록킹 하지 않음
+        :return: None
+        """
+        self.ocx.dynamicCall("CommConnect()")
+        if block:
+            while not self.connected:
+                pythoncom.PumpWaitingMessages()
+
+    def CommRqData(self, rqname, trcode, next, screen):
+        """
+        TR을 서버로 송신합니다.
+        :param rqname: 사용자가 임의로 지정할 수 있는 요청 이름
+        :param trcode: 요청하는 TR의 코드
+        :param next: 0: 처음 조회, 2: 연속 조회
+        :param screen: 화면번호 ('0000' 또는 '0' 제외한 숫자값으로 200개로 한정된 값
+        :return: None
+        """
+        self.ocx.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, trcode, next, screen)
+
+    def GetLoginInfo(self, tag):
+        """
+        로그인한 사용자 정보를 반환하는 메서드
+        :param tag: ("ACCOUNT_CNT, "ACCNO", "USER_ID", "USER_NAME", "KEY_BSECGB", "FIREW_SECGB")
+        :return: tag에 대한 데이터 값
+        """
+        data = self.ocx.dynamicCall("GetLoginInfo(QString)", tag)
+
+        if tag == "ACCNO":
+            return data.split(';')[:-1]
+        else:
+            return data
+
+    def SendOrder(self, rqname, screen, accno, order_type, code, quantity, price, hoga, order_no):
+        """
+        주식 주문을 서버로 전송하는 메서드
+        시장가 주문시 주문단가는 0으로 입력해야 함 (가격을 입력하지 않음을 의미)
+        :param rqname: 사용자가 임의로 지정할 수 있는 요청 이름
+        :param screen: 화면번호 ('0000' 또는 '0' 제외한 숫자값으로 200개로 한정된 값
+        :param accno: 계좌번호 10자리
+        :param order_type: 1: 신규매수, 2: 신규매도, 3: 매수취소, 4: 매도취소, 5: 매수정정, 6: 매도정정
+        :param code: 종목코드
+        :param quantity: 주문수량
+        :param price: 주문단가
+        :param hoga: 00: 지정가, 03: 시장가,
+                     05: 조건부지정가, 06: 최유리지정가, 07: 최우선지정가,
+                     10: 지정가IOC, 13: 시장가IOC, 16: 최유리IOC,
+                     20: 지정가FOK, 23: 시장가FOK, 26: 최유리FOK,
+                     61: 장전시간외종가, 62: 시간외단일가, 81: 장후시간외종가
+        :param order_no: 원주문번호로 신규 주문시 공백, 정정이나 취소 주문시에는 원주문번호를 입력
+        :return:
+        """
+        ret = self.ocx.dynamicCall("SendOrder(QString, QString, QString, int, QString, int, int, QString, QString)",
+                                   [rqname, screen, accno, order_type, code, quantity, price, hoga, order_no])
+        return ret
+
+    def SetInputValue(self, id, value):
+        """
+        TR 입력값을 설정하는 메서드
+        :param id: TR INPUT의 아이템명
+        :param value: 입력 값
+        :return: None
+        """
+        self.ocx.dynamicCall("SetInputValue(QString, QString)", id, value)
+
+    def DisconnectRealData(self, screen):
+        """
+        화면번호에 대한 리얼 데이터 요청을 해제하는 메서드
+        :param screen: 화면번호
+        :return: None
+        """
+        self.ocx.dynamicCall("DisconnectRealData(QString)", screen)
+
+    def GetRepeatCnt(self, trcode, rqname):
+        """
+        멀티데이터의 행(row)의 개수를 얻는 메서드
+        :param trcode: TR코드
+        :param rqname: 사용자가 설정한 요청이름
+        :return: 멀티데이터의 행의 개수
+        """
+        count = self.ocx.dynamicCall("GetRepeatCnt(QString, QString)", trcode, rqname)
+        return count
+
+    def CommKwRqData(self, arr_code, next, code_count, type, rqname, screen):
+        """
+        여러 종목 (한 번에 100종목)에 대한 TR을 서버로 송신하는 메서드
+        :param arr_code: 여러 종목코드 예: '000020:000040'
+        :param next: 0: 처음조회
+        :param code_count: 종목코드의 개수
+        :param type: 0: 주식종목 3: 선물종목
+        :param rqname: 사용자가 설정하는 요청이름
+        :param screen: 화면번호
+        :return:
+        """
+        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next, code_count, type, rqname, screen);
+        return ret
+
+    def GetAPIModulePath(self):
+        """
+        OpenAPI 모듈의 경로를 반환하는 메서드
+        :return: 모듈의 경로
+        """
+        ret = self.ocx.dynamicCall("GetAPIModulePath()")
+        return ret
+
+    def GetCodeListByMarket(self, market):
+        """
+        시장별 상장된 종목코드를 반환하는 메서드
+        :param market: 0: 코스피, 3: ELW, 4: 뮤추얼펀드 5: 신주인수권 6: 리츠
+                       8: ETF, 9: 하이일드펀드, 10: 코스닥, 30: K-OTC, 50: 코넥스(KONEX)
+        :return: 종목코드 리스트 예: ["000020", "000040", ...]
+        """
+        data = self.ocx.dynamicCall("GetCodeListByMarket(QString)", market)
+        tokens = data.split(';')[:-1]
+        return tokens
+
+    def GetConnectState(self):
+        """
+        현재접속 상태를 반환하는 메서드
+        :return: 0:미연결, 1: 연결완료
+        """
+        ret = self.ocx.dynamicCall("GetConnectState()")
+        return ret
+
+    def GetMasterCodeName(self, code):
+        """
+        종목코드에 대한 종목명을 얻는 메서드
+        :param code: 종목코드
+        :return: 종목명
+        """
+        data = self.ocx.dynamicCall("GetMasterCodeName(QString)", code)
+        return data
+
+    def GetMasterListedStockCnt(self, code):
+        """
+        종목에 대한 상장주식수를 리턴하는 메서드
+        :param code: 종목코드
+        :return: 상장주식수
+        """
+        data = self.ocx.dynamicCall("GetMasterListedStockCnt(QString)", code)
+        return data
+
+    def GetMasterConstruction(self, code):
+        """
+        종목코드에 대한 감리구분을 리턴
+        :param code: 종목코드
+        :return: 감리구분 (정상, 투자주의 투자경고, 투자위험, 투자주의환기종목)
+        """
+        data = self.ocx.dynamicCall("GetMasterConstruction(QString)", code)
+        return data
+
+    def GetMasterListedStockDate(self, code):
+        """
+        종목코드에 대한 상장일을 반환
+        :param code: 종목코드
+        :return: 상장일 예: "20100504"
+        """
+        data = self.ocx.dynamicCall("GetMasterListedStockDate(QString)", code)
+        return datetime.datetime.strptime(data, "%Y%m%d")
+
+    def GetMasterLastPrice(self, code):
+        """
+        종목코드의 전일가를 반환하는 메서드
+        :param code: 종목코드
+        :return: 전일가
+        """
+        data = self.ocx.dynamicCall("GetMasterLastPrice(QString)", code)
+        return int(data)
+
+    def GetMasterStockState(self, code):
+        """
+        종목의 종목상태를 반환하는 메서드
+        :param code: 종목코드
+        :return: 종목상태
+        """
+        data = self.ocx.dynamicCall("GetMasterStockState(QString)", code)
+        return data.split("|")
+
+    def GetDataCount(self, record):
+        count = self.ocx.dynamicCall("GetDataCount(QString)", record)
+        return count
+
+    def GetOutputValue(self, record, repeat_index, item_index):
+        count = self.ocx.dynamicCall("GetOutputValue(QString, int, int)", record, repeat_index, item_index)
+        return count
+
+    def GetCommData(self, trcode, rqname, index, item):
+        """
+        수순 데이터를 가져가는 메서드
+        :param trcode: TR 코드
+        :param rqname: 요청 이름
+        :param index: 멀티데이터의 경우 row index
+        :param item: 얻어오려는 항목 이름
+        :return:
+        """
+        data = self.ocx.dynamicCall("GetCommData(QString, QString, int, QString)", trcode, rqname, index, item)
+        return data.strip()
+
+    def GetCommRealData(self, code, fid):
+        data = self.ocx.dynamicCall("GetCommRealData(QString, int)", code, fid)
+        return data
+
+    def GetChejanData(self, fid):
+        data = self.ocx.dynamicCall("GetChejanData(int)", fid)
+        return data
+
+    def GetThemeGroupList(self, type=1):
+        data = self.ocx.dynamicCall("GetThemeGroupList(int)", type)
+        tokens = data.split(';')
+        if type == 0:
+            grp = {x.split('|')[0]:x.split('|')[1] for x in tokens}
+        else:
+            grp = {x.split('|')[1]: x.split('|')[0] for x in tokens}
+        return grp
+
+    def GetThemeGroupCode(self, theme_code):
+        data = self.ocx.dynamicCall("GetThemeGroupCode(QString)", theme_code)
+        data = data.split(';')
+        return [x[1:] for x in data]
+
+    def GetFutureList(self):
+        data = self.ocx.dynamicCall("GetFutureList()")
+        return data
+
+    def GetCommDataEx(self, trcode, record):
+        data = self.ocx.dynamicCall("GetCommDataEx(QString, QString)", trcode, record)
+        return data
+
+    def block_request(self, *trcode, **kwargs):
+        '''
+        tr조회함수
+        :param args: ex) 'opt10001'
+        :param kwargs: 종목코드="005930", output="주식기본정보", next=0
+        :return:
+        '''
+        trcode = trcode[0].lower()
+        lines = parser.read_enc(trcode)
+        self.tr_items = parser.parse_dat(trcode, lines)
+        self.tr_record = kwargs["output"]
+        next = kwargs["next"]
+
+        # set input
+        for id in kwargs:
+            if id.lower() != "output" and id.lower() != "next":
+                self.SetInputValue(id, kwargs[id])
+
+        # initialize
+        self.received = False
+        self.tr_remained = False
+
+        # request
+        self.CommRqData(trcode, trcode, next, "0101")
+        while not self.received:
+            pythoncom.PumpWaitingMessages()
+
+        return self.tr_data
+
+    def SetRealReg(self, screen, code_list, fid_list, real_type):
+        ret = self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen, code_list, fid_list, real_type)
+        return ret
+
+    def SetRealRemove(self, screen, del_code):
+        ret = self.ocx.dynamicCall("SetRealRemove(QString, QString)", screen, del_code)
+        return ret
+
+    def GetConditionLoad(self, block=True):
+        self.condition_loaded = False
+        self.ocx.dynamicCall("GetConditionLoad()")
+        if block:
+            while not self.condition_loaded:
+                pythoncom.PumpWaitingMessages()
+
+    def GetConditionNameList(self):
+        data = self.ocx.dynamicCall("GetConditionNameList()")
+        conditions = data.split(";")[:-1]
+
+        # [('000', 'perpbr'), ('001', 'macd'), ...]
+        result = []
+        for condition in conditions:
+            cond_index, cond_name = condition.split('^')
+            result.append((cond_index, cond_name))
+
+        return result
+
+    def SendCondition(self, screen, cond_name, cond_index, search):
+        self.tr_condition_loaded = False
+        self.ocx.dynamicCall("SendCondition(QString, QString, int, int)", screen, cond_name, cond_index, search)
+
+        while not self.tr_condition_loaded:
+            pythoncom.PumpWaitingMessages()
+
+        return self.tr_condition_data
+
+    def SendConditionStop(self, screen, cond_name, index):
+        self.ocx.dynamicCall("SendConditionStop(QString, QString, int)", screen, cond_name, index)
+
+    def GetCommDataEx(self, trcode, rqname):
+        data = self.ocx.dynamicCall("GetCommDataEx(QString, QString)", trcode, rqname)
+        return data
+
+    def SendOrder(self, rqname, screen, accno, order_type, code, quantity, price, hoga, order_no):
+        self.ocx.dynamicCall("SendOrder(QString, QString, QString, int, QString, int, int, QString, QString)",
+                             [rqname, screen, accno, order_type, code, quantity, price, hoga, order_no])
+        # 주문 후 0.2초 대기
+        time.sleep(0.2)
+
+    def CurrentTime(self):
+        return time.strftime('%H%M%S')
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    # 로그인
+    worker = Worker(queue)
+    app.exec_()
