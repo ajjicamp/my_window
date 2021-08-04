@@ -1,5 +1,4 @@
 import sys
-import queue
 from PyQt5.QtWidgets import *
 from PyQt5.QAxContainer import *
 import pythoncom
@@ -8,17 +7,19 @@ import parser
 from RealType import *
 import pandas as pd
 import time
+from multiprocessing import Process, Queue
+from hoga import HogaUpdate
 import logging
 
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 logging.basicConfig(level=logging.INFO)
 
 class Worker:
-    def __init__(self, data_queue, login=False):
+    def __init__(self, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
 
-        self.data_queue = data_queue
+        self.hogaQ = hogaQ
         self.connected = False              # for login event
         self.received = False               # for tr event
         self.tr_remained = False
@@ -267,6 +268,9 @@ class Worker:
         pass
 
     def UpdateHogaData(self, code, hg_cp, hg_q, hg, per):
+        self.hogaQ.put(code, hg_cp, hg_q, hg, per)
+        HogaUpdate()
+
         pass
 
     def GetSanghanga(self, code):
@@ -635,6 +639,7 @@ class Worker:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    queue = Queue
     # 로그인
     worker = Worker(queue)
     app.exec_()

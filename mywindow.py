@@ -7,6 +7,8 @@
 # WARNING! All changes made in this file will be lost!
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from multiprocessing import Process, Queue
+from worker import Worker
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -189,40 +191,7 @@ class Ui_MainWindow(object):
         self.code_chart.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-        self.table_gwansim_input()
-
-    def table_gwansim_input(self):
-        # 조건검색결과 가져옴.
-        self.kiwoom.GetConditionLoad()
-
-        conditions = self.kiwoom.GetConditionNameList()
-
-        # 0번 조건식에 해당하는 종목 리스트 출력
-        condition_index = conditions[0][0]
-        condition_name = conditions[0][1]
-        codes = self.kiwoom.SendCondition("0101", condition_name, condition_index, 0)
-        print(codes)
-        self.codes = codes
-        code_list = None
-        for i, code in enumerate(codes):
-            if i == 0:
-                code_list = code
-            else:
-                code_list = code_list + ';' + code
-
-        # 현재는 조건검색종목을 감시대상종목으로 선정하지만 나중에는 gui화면에서 사용자가 선택, 수정할 수 있도록 한다.
-        self.code_list = code_list
-
-        # QMessageBox.about(self, "message", "clicked")
-
-
-
-
-
-
-        self.table_gwansim.setItem(1, 0, QtWidgets.QTableWidgetItem('삼성전자'))
-
-
+        # self.table_gwansim_input()
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -275,12 +244,13 @@ class Ui_MainWindow(object):
         self.code_chart.setTabText(self.code_chart.indexOf(self.teb_daily), _translate("MainWindow", "일봉"))
         self.code_chart.setTabText(self.code_chart.indexOf(self.tab_weekly), _translate("MainWindow", "분봉"))
 
-
-
 from pyqtgraph import PlotWidget
+import sys
 
 if __name__ == "__main__":
-    import sys
+    queue = Queue()
+    Process(target=Worker, args=(queue,), daemon=True).start()
+
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
