@@ -57,8 +57,6 @@ class Worker:
         self.GetCondition()
         self.SetRealReg("1001", self.code_list, "20;41", "0")
 
-        # print('work start')
-
     def GetCondition(self):
         # 조건식 load
         self.GetConditionLoad()

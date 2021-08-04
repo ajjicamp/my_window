@@ -250,7 +250,6 @@ import sys
 if __name__ == "__main__":
     queue = Queue()
     Process(target=Worker, args=(queue,), daemon=True).start()
-
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
