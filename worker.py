@@ -62,8 +62,6 @@ class Worker():
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
 
-        # print('work start')
-
     def GetCondition(self):
         # 조건식 load
         self.GetConditionLoad()
