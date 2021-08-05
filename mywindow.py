@@ -248,13 +248,18 @@ from pyqtgraph import PlotWidget
 import sys
 
 if __name__ == "__main__":
-    queue = Queue()
-    Process(target=Worker, args=(queue,), daemon=True).start()
-
     app = QtWidgets.QApplication(sys.argv)
+
+    queue = Queue()
+    # Process(target=Worker, args=(queue,), daemon=True).start()
+    worker = Worker(queue)
+    worker.start()
+    # Process(target=Worker, args=(queue,), daemon=False).start()
+
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     MainWindow.show()
-    sys.exit(app.exec_())
+    # sys.exit(app.exec_())
+    app.exec_()
 

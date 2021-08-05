@@ -11,11 +11,15 @@ from multiprocessing import Process, Queue
 from hoga import HogaUpdate
 import logging
 
-# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
-logging.basicConfig(level=logging.INFO)
+# app = QApplication(sys.argv)
 
-class Worker:
+# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+# logging.basicConfig(level=logging.INFO)
+
+# class Worker(Process):
+class Worker():
     def __init__(self, hogaQ, login=False):
+        super().__init__()
         if not QApplication.instance():
             app = QApplication(sys.argv)
 
@@ -54,7 +58,8 @@ class Worker:
     def start(self):
         self.CommConnect(block=True)
         self.list_kosd = self.GetCodeListByMarket("10")
-        self.GetCondition()
+        self.code_list = self.GetCondition()
+        # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
 
         # print('work start')
@@ -67,8 +72,16 @@ class Worker:
         condition_index = conditions[0][0]
         condition_name = conditions[0][1]
         codes = self.SendCondition("0101", condition_name, condition_index, 0)
-        print('종목코드: ', len(codes), codes)
-        self.code_list = codes
+
+        code_list =None
+        for i, code in enumerate(codes):
+            if i == 0:
+                code_list = code
+            else:
+                code_list = code_list + ';' + code
+
+        # print('종목코드: ', len(codes), codes)
+        return  code_list
 
 
     def _handler_login(self, err_code):
@@ -81,6 +94,7 @@ class Worker:
             self.condition_loaded = True
 
     def _handler_tr_condition(self, screen_no, code_list, cond_name, cond_index, next):
+        # print('code_list: ', code_list)
         codes = code_list.split(';')[:-1]
         self.tr_condition_data = codes
         self.tr_condition_loaded= True
@@ -126,10 +140,11 @@ class Worker:
 
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
 
-        self.real_data_dict = {}
-        self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
+        # self.real_data_dict = {}
+        # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
 
         if realtype == "주식체결":
+            print('실시간 주식체결')
             try:
                 c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
                 per = float(self.GetCommRealData(code, 12))  # 등락율 percent
@@ -152,6 +167,7 @@ class Worker:
                 self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
 
         elif realtype == "주식호가잔량":
+            print('실시간 호가잔량: ', realtype)
 
             # self.int_cthj += 1
             # self.int_ctrhj += 1
@@ -268,10 +284,9 @@ class Worker:
         pass
 
     def UpdateHogaData(self, code, hg_cp, hg_q, hg, per):
-        self.hogaQ.put(code, hg_cp, hg_q, hg, per)
-        HogaUpdate()
-
         pass
+        # self.hogaQ.put([code, hg_cp, hg_q, hg, per])
+        # HogaUpdate()
 
     def GetSanghanga(self, code):
         predayclose = self.GetMasterLastPrice(code)
@@ -587,6 +602,7 @@ class Worker:
 
     def SetRealReg(self, screen, code_list, fid_list, real_type):
         ret = self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen, code_list, fid_list, real_type)
+        print('ret:', ret)
         return ret
 
     def SetRealRemove(self, screen, del_code):
@@ -639,7 +655,11 @@ class Worker:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
     queue = Queue
-    # 로그인
-    worker = Worker(queue)
+    Process(target=Worker, args=(queue,), daemon=True).start()
+    # worker = Worker(queue)
+    # worker = Worker(queue)
+    # worker.start()
+
     app.exec_()
