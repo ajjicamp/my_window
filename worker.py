@@ -17,9 +17,9 @@ import logging
 # logging.basicConfig(level=logging.INFO)
 
 # class Worker(Process):
-class Worker():
+class Worker:
     def __init__(self, hogaQ, login=False):
-        super().__init__()
+        # super().__init__()
         if not QApplication.instance():
             app = QApplication(sys.argv)
 
@@ -52,7 +52,6 @@ class Worker():
         self.ocx.OnReceiveTrCondition.connect(self._handler_tr_condition)
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
         self.ocx.OnReceiveChejanData.connect(self._handler_chejan)
-
         self.start()
 
     def start(self):
@@ -61,6 +60,24 @@ class Worker():
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
+        real_event_loop = 
+        # app.exec_()
+        # self.EventLoop()
+
+    '''
+    def EventLoop(self):
+        while True:
+            if not self.hogaQ.empty():
+                work = self.hogaQ.get()
+                if type(work) == list:
+                    self.UpdateRealreg(work)
+                elif type(work) == str:
+                    self.RunWork(work)
+            time_loop = timedelta_sec(0.25)
+            while datetime.datetime.now() < time_loop:
+                pythoncom.PumpWaitingMessages()
+                time.sleep(loop_sleeptime)
+    '''
 
     def GetCondition(self):
         # 조건식 load
@@ -137,7 +154,7 @@ class Worker():
     def _handler_real(self, code, realtype, realdata):
 
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
-
+        print('real_data', realtype)
         # self.real_data_dict = {}
         # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
 
@@ -162,6 +179,7 @@ class Worker():
                 # self.log.info(f"[{strtime()}] _h_real_data 주식체결 {e}")
 
             else:
+                # pass
                 self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
 
         elif realtype == "주식호가잔량":
@@ -652,12 +670,11 @@ class Worker():
         return time.strftime('%H%M%S')
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    queue = Queue
+    # queue = Queue
+    queue = "Queue"
     Process(target=Worker, args=(queue,), daemon=True).start()
     # worker = Worker(queue)
-    # worker = Worker(queue)
     # worker.start()
-
+    # worker = Worker(queue)
+    app = QApplication(sys.argv)
     app.exec_()

@@ -6,7 +6,6 @@ from worker import Worker
 
 form_class = uic.loadUiType('mywindow.ui')[0]
 
-
 class MyWindow(QtWidgets.QMainWindow, form_class):
     def __init__(self):
         super().__init__()
@@ -26,6 +25,7 @@ if __name__ == '__main__':
     # queue = Queue
     queue = "Queue"
     Process(target=Worker, args=(queue,), daemon=True).start()
+    # Process(target=Worker, args=(queue,), daemon=False).start()
     # p = Process(target=Worker, args=(queue,), daemon=False)
     # worker = Worker(queue)
     # worker.start()
