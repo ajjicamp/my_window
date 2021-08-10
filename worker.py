@@ -11,7 +11,7 @@ from multiprocessing import Process, Queue
 from hoga import HogaUpdate
 import logging
 
-# app = QApplication(sys.argv)
+app = QApplication(sys.argv)
 
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
@@ -60,8 +60,7 @@ class Worker:
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
-        real_event_loop = 
-        # app.exec_()
+        app.exec_()
         # self.EventLoop()
 
     '''
@@ -154,7 +153,7 @@ class Worker:
     def _handler_real(self, code, realtype, realdata):
 
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
-        print('real_data', realtype)
+        # print('real_data',"here", realtype, realdata)
         # self.real_data_dict = {}
         # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
 
@@ -295,6 +294,31 @@ class Worker:
                 logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
             else:
                 self.UpdateHogaData(code, hg_cp, hg_q, hg, per)
+
+        elif realtype == 'ECN주식호가잔량':
+            print('realtype: ', realtype)
+            time = self.GetCommRealData(code, 21)
+            # quan = int(self.GetCommRealData(code, 131))
+            quan = self.GetCommRealData(code, 131)
+
+            print('code', code)
+            print('time', time, quan)
+            try:
+                time = self.GetCommRealData(code, 21)
+                quan = int(self.GetCommRealData(code, 131))
+                daebi = int(self.GetCommRealData(code, 132))
+                print("try 중...")
+            except Exception as e:
+                # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
+                logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
+
+            else:
+                self.UpdateECNHogaData(code, time, quan, daebi)
+
+    def UpdateECNHogaData(self, code, time, quan, daebi):
+        data = (code, time, quan, daebi)
+        print(data)
+        # self.hogaQ.put(data)
 
     def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
         pass
