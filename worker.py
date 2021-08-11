@@ -59,6 +59,7 @@ class Worker:
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
+
         app.exec_()
         # self.EventLoop()
 
