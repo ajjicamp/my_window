@@ -8,21 +8,21 @@ from RealType import *
 import pandas as pd
 import time
 from multiprocessing import Process, Queue
-from hoga import HogaUpdate
+# from hoga import Hoga
 import logging
 
 app = QApplication(sys.argv)
 
-# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
 
-# class Worker(Process):
 class Worker:
-    def __init__(self, hogaQ, login=False):
-        # super().__init__()
+    def __init__(self, windowQ, workerQ, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
 
+        self.windowQ = windowQ
+        self.worderQ = workerQ
         self.hogaQ = hogaQ
         self.connected = False              # for login event
         self.received = False               # for tr event
@@ -42,7 +42,6 @@ class Worker:
 
         # 조건식때문에 작동하지 않는다. 언제 작동하려고 준비한건지
         # if login:
-        #     self.CommConnect()
         self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
         # self._set_signals_slots()
         self.ocx.OnEventConnect.connect(self._handler_login)
@@ -153,12 +152,12 @@ class Worker:
     def _handler_real(self, code, realtype, realdata):
 
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
-        # print('real_data',"here", realtype, realdata)
+        # print('real_data', realtype)
         # self.real_data_dict = {}
         # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
 
         if realtype == "주식체결":
-            print('실시간 주식체결')
+            # print('실시간 주식체결')
             try:
                 c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
                 per = float(self.GetCommRealData(code, 12))  # 등락율 percent
@@ -182,13 +181,14 @@ class Worker:
                 self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
 
         elif realtype == "주식호가잔량":
-            print('실시간 호가잔량: ', realtype)
+            # print('실시간 호가잔량: ', realtype)
 
             # self.int_cthj += 1
             # self.int_ctrhj += 1
             try:
                 # 직전대비
-                hg_cp = [
+                hg_tm = self.GetCommRealData(code, 21)
+                hg_db = [
                     int(float(self.GetCommRealData(code, 139))),
                     int(self.GetCommRealData(code, 90)),
                     int(self.GetCommRealData(code, 89)),
@@ -214,7 +214,7 @@ class Worker:
                 ]
 
                 # 호가수량
-                hg_q = [
+                hg_sr = [
                     int(self.GetCommRealData(code, 121)),
                     int(self.GetCommRealData(code, 70)),
                     int(self.GetCommRealData(code, 69)),
@@ -240,7 +240,7 @@ class Worker:
                 ]
 
                 # 호가(금액)
-                hg = [
+                hg_ga = [
                     self.GetSanghanga(code),
                     abs(int(self.GetCommRealData(code, 50))),
                     abs(int(self.GetCommRealData(code, 49))),
@@ -266,66 +266,41 @@ class Worker:
                 ]
                 prec = self.GetMasterLastPrice(code)
                 per = [
-                    round((hg[0] / prec - 1) * 100, 2),
-                    round((hg[1] / prec - 1) * 100, 2),
-                    round((hg[2] / prec - 1) * 100, 2),
-                    round((hg[3] / prec - 1) * 100, 2),
-                    round((hg[4] / prec - 1) * 100, 2),
-                    round((hg[5] / prec - 1) * 100, 2),
-                    round((hg[6] / prec - 1) * 100, 2),
-                    round((hg[7] / prec - 1) * 100, 2),
-                    round((hg[8] / prec - 1) * 100, 2),
-                    round((hg[9] / prec - 1) * 100, 2),
-                    round((hg[10] / prec - 1) * 100, 2),
-                    round((hg[11] / prec - 1) * 100, 2),
-                    round((hg[12] / prec - 1) * 100, 2),
-                    round((hg[13] / prec - 1) * 100, 2),
-                    round((hg[14] / prec - 1) * 100, 2),
-                    round((hg[15] / prec - 1) * 100, 2),
-                    round((hg[16] / prec - 1) * 100, 2),
-                    round((hg[17] / prec - 1) * 100, 2),
-                    round((hg[18] / prec - 1) * 100, 2),
-                    round((hg[19] / prec - 1) * 100, 2),
-                    round((hg[20] / prec - 1) * 100, 2),
-                    round((hg[21] / prec - 1) * 100, 2)
+                    round((hg_ga[0] / prec - 1) * 100, 2),
+                    round((hg_ga[1] / prec - 1) * 100, 2),
+                    round((hg_ga[2] / prec - 1) * 100, 2),
+                    round((hg_ga[3] / prec - 1) * 100, 2),
+                    round((hg_ga[4] / prec - 1) * 100, 2),
+                    round((hg_ga[5] / prec - 1) * 100, 2),
+                    round((hg_ga[6] / prec - 1) * 100, 2),
+                    round((hg_ga[7] / prec - 1) * 100, 2),
+                    round((hg_ga[8] / prec - 1) * 100, 2),
+                    round((hg_ga[9] / prec - 1) * 100, 2),
+                    round((hg_ga[10] / prec - 1) * 100, 2),
+                    round((hg_ga[11] / prec - 1) * 100, 2),
+                    round((hg_ga[12] / prec - 1) * 100, 2),
+                    round((hg_ga[13] / prec - 1) * 100, 2),
+                    round((hg_ga[14] / prec - 1) * 100, 2),
+                    round((hg_ga[15] / prec - 1) * 100, 2),
+                    round((hg_ga[16] / prec - 1) * 100, 2),
+                    round((hg_ga[17] / prec - 1) * 100, 2),
+                    round((hg_ga[18] / prec - 1) * 100, 2),
+                    round((hg_ga[19] / prec - 1) * 100, 2),
+                    round((hg_ga[20] / prec - 1) * 100, 2),
+                    round((hg_ga[21] / prec - 1) * 100, 2)
                 ]
             except Exception as e:
                 # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
                 logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
             else:
-                self.UpdateHogaData(code, hg_cp, hg_q, hg, per)
-
-        elif realtype == 'ECN주식호가잔량':
-            print('realtype: ', realtype)
-            time = self.GetCommRealData(code, 21)
-            # quan = int(self.GetCommRealData(code, 131))
-            quan = self.GetCommRealData(code, 131)
-
-            print('code', code)
-            print('time', time, quan)
-            try:
-                time = self.GetCommRealData(code, 21)
-                quan = int(self.GetCommRealData(code, 131))
-                daebi = int(self.GetCommRealData(code, 132))
-                print("try 중...")
-            except Exception as e:
-                # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
-                logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
-
-            else:
-                self.UpdateECNHogaData(code, time, quan, daebi)
-
-    def UpdateECNHogaData(self, code, time, quan, daebi):
-        data = (code, time, quan, daebi)
-        print(data)
-        # self.hogaQ.put(data)
+                self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
 
     def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
         pass
 
-    def UpdateHogaData(self, code, hg_cp, hg_q, hg, per):
-        pass
-        # self.hogaQ.put([code, hg_cp, hg_q, hg, per])
+    def UpdateHogaData(self, code, hg_tm, hg_db, hg_sr, hg_ga, per):
+        # print('호가잔량데이터 수신처리')
+        self.hogaQ.put([code,hg_tm, hg_db, hg_sr, hg_ga, per])
         # HogaUpdate()
 
     def GetSanghanga(self, code):
@@ -697,8 +672,5 @@ if __name__ == "__main__":
     # queue = Queue
     queue = "Queue"
     Process(target=Worker, args=(queue,), daemon=True).start()
-    # worker = Worker(queue)
-    # worker.start()
-    # worker = Worker(queue)
     app = QApplication(sys.argv)
     app.exec_()

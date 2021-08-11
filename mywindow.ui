@@ -58,7 +58,7 @@
        <string>호가주문</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_8">
-       <item row="0" column="0">
+       <item row="1" column="0">
         <widget class="QTableWidget" name="hogawindow"/>
        </item>
       </layout>
@@ -66,7 +66,33 @@
     </item>
     <item row="0" column="2" rowspan="2">
      <widget class="QWidget" name="widget" native="true">
-      <layout class="QGridLayout" name="gridLayout_4" rowstretch="100,400">
+      <layout class="QGridLayout" name="gridLayout_4" rowstretch="100,200">
+       <item row="0" column="0">
+        <widget class="QTabWidget" name="control">
+         <property name="currentIndex">
+          <number>0</number>
+         </property>
+         <widget class="QWidget" name="tab_4">
+          <attribute name="title">
+           <string>수신로그</string>
+          </attribute>
+          <layout class="QGridLayout" name="gridLayout_12">
+           <item row="0" column="0">
+            <widget class="QTextEdit" name="textEdit">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="tab_5">
+          <attribute name="title">
+           <string>모드설정</string>
+          </attribute>
+         </widget>
+        </widget>
+       </item>
        <item row="1" column="0">
         <widget class="QTabWidget" name="gwansim">
          <property name="currentIndex">
@@ -309,23 +335,6 @@
             </widget>
            </item>
           </layout>
-         </widget>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QTabWidget" name="control">
-         <property name="currentIndex">
-          <number>1</number>
-         </property>
-         <widget class="QWidget" name="tab_4">
-          <attribute name="title">
-           <string>수신로그</string>
-          </attribute>
-         </widget>
-         <widget class="QWidget" name="tab_5">
-          <attribute name="title">
-           <string>모드설정</string>
-          </attribute>
          </widget>
         </widget>
        </item>
