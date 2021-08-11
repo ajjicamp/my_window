@@ -35,5 +35,3 @@ class Writer(QtCore.QThread):
                 #         self.data1.emit(data)
                 #     else:
                 #         self.data2.emit(data)
-
-                # todo 아래부분이 작동하면 수신시간 차이가 많이 난다.
