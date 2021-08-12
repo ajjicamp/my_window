@@ -7,7 +7,7 @@ import parser
 from RealType import *
 import pandas as pd
 import time
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, current_process
 # from hoga import Hoga
 import logging
 
@@ -19,7 +19,7 @@ class Worker:
     def __init__(self, windowQ, workerQ, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
-
+        # print('name:$$', current_process().name)
         self.windowQ = windowQ
         self.worderQ = workerQ
         self.hogaQ = hogaQ

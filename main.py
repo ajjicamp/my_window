@@ -37,7 +37,7 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
-    Process(target=Worker, args=(windowQ, workerQ, hogaQ,), daemon=True).start()
+    Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
     Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
     # p = Pool(5)
     # p.map(MyWindow(),[])
