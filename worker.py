@@ -12,7 +12,6 @@ from multiprocessing import Process, Queue
 import logging
 
 app = QApplication(sys.argv)
-
 logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
 
@@ -55,13 +54,20 @@ class Worker:
 
     def start(self):
         self.CommConnect(block=True)
+        self.EventLoop()
+        app.exec_()
+
+    def EventLoop(self):
         self.list_kosd = self.GetCodeListByMarket("10")
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
 
-        app.exec_()
-        # self.EventLoop()
+        self.hogaUpdate()
+
+    def hogaUpdate(self):
+        pass
+
 
     '''
     def EventLoop(self):
@@ -156,6 +162,10 @@ class Worker:
         # print('real_data', realtype)
         # self.real_data_dict = {}
         # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
+
+
+        # 여기서 real_data 수신로그를 windowQ로 보낸다
+        self.windowQ.put(['수신시간', str(datetime.datetime.now().strftime("%H:%M:%S.%f"))])
 
         if realtype == "주식체결":
             # print('실시간 주식체결')
@@ -297,9 +307,13 @@ class Worker:
                 self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
 
     def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
+        # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
+        # 다음으로 매수, 매도, 조건분석을 위해 data를 dataframe, sqlite3 DB에 저장해야 한다.
         pass
 
     def UpdateHogaData(self, code, hg_tm, hg_db, hg_sr, hg_ga, per):
+        # 호가창, 관심종목창, 주식잔고창 update
+
         # print('호가잔량데이터 수신처리')
         self.hogaQ.put([code,hg_tm, hg_db, hg_sr, hg_ga, per])
         # HogaUpdate()

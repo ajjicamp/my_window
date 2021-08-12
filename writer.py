@@ -18,11 +18,16 @@ class Writer(QtCore.QThread):
     def run(self):
         while True:
             if not self.windowQ.empty():
-                time.sleep(self.int_elst)
                 data = self.windowQ.get()
-                if data[0] == '호가갱신':
-                    self.data0.emit([datetime.datetime.now(), data[1]])
-                print('windowQ size: ', self.windowQ.qsize() )
+                # print(data)
+
+                self.data0.emit(data)
+
+
+                # data[key]
+                # if data.key() == '수신시간':
+                #     self.data0.emit([datetime.datetime.now(), data[1]])
+                # print('windowQ size: ', self.windowQ.qsize() )
                 # if type(data) == str:
                 #     if '이벤트루프 슬립시간' in data:
                 #         self.int_elst = float(data.split(" ")[-1])
