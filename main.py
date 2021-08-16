@@ -14,6 +14,8 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        print('self: ', self)
+        print('form_class', form_class)
         # self.show()
         # todo pyqtSlot 설정
         self.writer = Writer(windowQ)
@@ -37,8 +39,8 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
-    Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
-    Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
+    # Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
+    # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
     # p = Pool(5)
     # p.map(MyWindow(),[])
     mywindow = MyWindow()

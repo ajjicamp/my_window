@@ -9,13 +9,14 @@
 import sys
 import time
 import datetime
+from PyQt5.QtCore import Qt
 from PyQt5 import QtWidgets, QAxContainer, uic
 from multiprocessing import Process, Queue, Pool, current_process
-from subwindow import SubWindow01
+# from subwindow import SubWindow01
 import pythoncom
 
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/multiwindow/mwindow01.ui')[0]
-# form_class01 = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/multiwindow/subwindow01.ui')[0]
+form_class01 = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/multiwindow/subwindow01.ui')[0]
 form_class02 = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/multiwindow/subwindow02.ui')[0]
 
 class MWindow(QtWidgets.QMainWindow, form_class):
@@ -34,6 +35,11 @@ class MWindow(QtWidgets.QMainWindow, form_class):
 
 
     def start(self):
+        item_0 = "test level"
+        item_0 = QtWidgets.QTableWidgetItem(item_0)
+        item_0.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+        self.tableWidget.setItem(3, 2, item_0)
+        # self.tableWidget.item(row, 2).setBackground(QtGui.QColor(100, 0, 0, 50))
         print('Process run')
         print('main_current name: ',current_process() )
 
@@ -42,35 +48,45 @@ class MWindow(QtWidgets.QMainWindow, form_class):
         SubWindow01(self, queue)
 
     def subWindow02_clicked(self, queue):
-        sub02 = SubWindow02(self, queue)
+        # Process(target=SubWindow02, args=(self, queue)).start
+        SubWindow02(self, queue)
 
-'''
 class SubWindow01(QtWidgets.QMainWindow, form_class01):
-    def __init__(self,parent):
+    def __init__(self, parent, queue):
         # app = QtWidgets.QApplication(sys.argv)
         super(SubWindow01, self).__init__(parent)
+        self.parent = parent
+        self.q = queue
         self.setupUi(self)
         self.show()
         self.start()
+
         # app.exec_()
 
+
         # time.sleep(0.0003)
+
     def start(self):
-        stime = time.time()
-        x1, y1 = 0, 0
-        for i in range(50000):
-            x1 = i * i
-            y1 += x1
-            # print(f'y1: {y1}')
-        print(f'sub01_runtime: {time.time() - stime }')
-        print('name:', __name__)
-        print('sub01_current name: ',current_process() )
-'''
+        pass
+        # x = SubWrite(self)
+        # x.start()
+
+class SubWrite(Process):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        print('parent', self.parent)
+        item_0 = "test sub"
+        item_0 = QtWidgets.QTableWidgetItem(item_0)
+        item_0.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+        self.parent.tableWidget.setItem(2, 2, item_0)
+
 
 class SubWindow02(QtWidgets.QDialog, form_class02):
     def __init__(self, parent, queue):
         # app = QtWidgets.QApplication(sys.argv)
         super(SubWindow02, self).__init__(parent)
+        print('sub02 proc')
         self.q = queue
         self.setupUi(self)
         self.show()
@@ -101,12 +117,6 @@ if __name__ == "__main__":
     # app = QtWidgets.QApplication(sys.argv)
 
     # Process(target=MWindow, args=()).start()
-    # Process(target=SubWindow01, args=()).start()
-    # Process(target=SubWindow02, args=()).start()
-
     mwindow = MWindow()
-    # subwindow01 = SubWindow01()
-    # subwindow02 = SubWindow02()
-
 
     # app.exec_()

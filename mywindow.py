@@ -252,8 +252,8 @@ if __name__ == "__main__":
 
     queue = Queue()
     # Process(target=Worker, args=(queue,), daemon=True).start()
-    worker = Worker(queue)
-    worker.start()
+    # worker = Worker(queue)
+    # worker.start()
     # Process(target=Worker, args=(queue,), daemon=False).start()
 
     MainWindow = QtWidgets.QMainWindow()
