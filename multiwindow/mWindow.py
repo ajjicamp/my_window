@@ -28,8 +28,8 @@ class MWindow(QtWidgets.QMainWindow, form_class):
         self.pushButton.clicked.connect(self.subWindow01_clicked)
         self.pushButton_2.clicked.connect(self.subWindow02_clicked)
 
-        self.show()
         self.start()
+        self.show()
 
         app.exec_()
 
@@ -44,13 +44,23 @@ class MWindow(QtWidgets.QMainWindow, form_class):
         print('main_current name: ',current_process() )
 
     def subWindow01_clicked(self,queue):
-        # sub01 = SubWindow01(self)
-        SubWindow01(self, queue)
+        # SubWindow01(self, queue)       # class 실행
+        self.setsubwindow01(queue)       # function 실행
 
     def subWindow02_clicked(self, queue):
         # Process(target=SubWindow02, args=(self, queue)).start
         SubWindow02(self, queue)
 
+    def setsubwindow01(self, queue):    # 이렇게 만들면 메인윈도우 크릭시 밑에 깔려 보이지 않는다.
+        self.q = queue
+        self.ui = uic.loadUi('subwindow01.ui')
+        # self.ui.move(10,10)
+
+        # self.ui.setWindowModality(Qt.NonModal)
+        self.ui.show()
+
+        # self.show()
+'''
 class SubWindow01(QtWidgets.QMainWindow, form_class01):
     def __init__(self, parent, queue):
         # app = QtWidgets.QApplication(sys.argv)
@@ -70,6 +80,8 @@ class SubWindow01(QtWidgets.QMainWindow, form_class01):
         pass
         # x = SubWrite(self)
         # x.start()
+'''
+
 
 class SubWrite(Process):
     def __init__(self, parent):
