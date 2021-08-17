@@ -44,20 +44,19 @@ class MWindow(QtWidgets.QMainWindow, form_class):
         print('main_current name: ',current_process() )
 
     def subWindow01_clicked(self,queue):
-        # SubWindow01(self, queue)       # class 실행
-        self.setsubwindow01(queue)       # function 실행
+        SubWindow01(self, queue)       # class 실행
+        # self.setsubwindow01(queue)       # function 실행
 
     def subWindow02_clicked(self, queue):
         # Process(target=SubWindow02, args=(self, queue)).start
         SubWindow02(self, queue)
-
+'''
     def setsubwindow01(self, queue):    # 이렇게 만들면 메인윈도우 크릭시 밑에 깔려 보이지 않는다.
         self.q = queue
         self.ui = uic.loadUi('subwindow01.ui')
-        # self.ui.move(10,10)
-
         # self.ui.setWindowModality(Qt.NonModal)
         self.ui.show()
+
 
         # self.show()
 '''
@@ -67,6 +66,9 @@ class SubWindow01(QtWidgets.QMainWindow, form_class01):
         super(SubWindow01, self).__init__(parent)
         self.parent = parent
         self.q = queue
+        # self.subwin = uic.loadUi("C:/Users/USER/PycharmProjects/my_window/multiwindow/subwindow01.ui")
+        # self.subwin.setWindowFlags(Qt.WindowStaysOnTopHint)  # 항상 위에 있게 한다.
+        # self.subwin.show()
         self.setupUi(self)
         self.show()
         self.start()
@@ -80,7 +82,6 @@ class SubWindow01(QtWidgets.QMainWindow, form_class01):
         pass
         # x = SubWrite(self)
         # x.start()
-'''
 
 
 class SubWrite(Process):
@@ -93,7 +94,6 @@ class SubWrite(Process):
         item_0.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
         self.parent.tableWidget.setItem(2, 2, item_0)
 
-
 class SubWindow02(QtWidgets.QDialog, form_class02):
     def __init__(self, parent, queue):
         # app = QtWidgets.QApplication(sys.argv)
@@ -101,6 +101,7 @@ class SubWindow02(QtWidgets.QDialog, form_class02):
         print('sub02 proc')
         self.q = queue
         self.setupUi(self)
+        # self.setWindowFlags(Qt.WindowStaysOnTopHint)  # 항상 위에 있게 한다.
         self.show()
         self.start()
         # time.sleep(0.0003)

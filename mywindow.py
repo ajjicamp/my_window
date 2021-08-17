@@ -1,3 +1,5 @@
+### ui파일을 py파일로 변환
+
 # -*- coding: utf-8 -*-
 
 # Form implementation generated from reading ui file 'C:\Users\USER\PycharmProjects\soulsnoW\myfolder\mywindow.ui'

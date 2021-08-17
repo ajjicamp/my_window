@@ -25,11 +25,11 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.writer.start()
         # app.exec_()
 
-    def UpdateTexedit(self,msg):
+    def UpdateTexedit(self, msg):
         now = datetime.datetime.now()
         self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
 
-    def DrawChart(self,data):
+    def DrawChart(self, data):
         pass
 
     def UpdateTablewidget(self):

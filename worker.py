@@ -62,7 +62,6 @@ class Worker:
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
-
         self.hogaUpdate()
 
     def hogaUpdate(self):
@@ -70,6 +69,7 @@ class Worker:
 
 
     '''
+    # SoulsnoW eventloop
     def EventLoop(self):
         while True:
             if not self.hogaQ.empty():
@@ -682,10 +682,4 @@ class Worker:
 
     def CurrentTime(self):
         return time.strftime('%H%M%S')
-
-if __name__ == "__main__":
-    # queue = Queue
-    queue = "Queue"
-    Process(target=Worker, args=(queue,), daemon=True).start()
-    app = QApplication(sys.argv)
-    app.exec_()
+)
