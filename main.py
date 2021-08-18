@@ -1,7 +1,7 @@
 import datetime
 import sys
 import time
-from PyQt5 import QtWidgets, QAxContainer, uic
+from PyQt5 import QtWidgets, QtCore, QAxContainer, uic
 from multiprocessing import Process, Queue, Pool
 from worker import Worker
 from writer import Writer
@@ -23,8 +23,9 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.writer.data1.connect(self.DrawChart)
         self.writer.data2.connect(self.UpdateTablewidget)
         self.writer.start()
-        # app.exec_()
 
+        # app.exec_()
+    # @QtCore.pyqtSlot(list)
     def UpdateTexedit(self, msg):
         now = datetime.datetime.now()
         self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
@@ -39,7 +40,7 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
-    # Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
+    Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
     # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
     # p = Pool(5)
     # p.map(MyWindow(),[])

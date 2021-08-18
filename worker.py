@@ -53,36 +53,28 @@ class Worker:
         self.start()
 
     def start(self):
+        self.createDatabase()
+        self.loadDatabase()
         self.CommConnect(block=True)
         self.EventLoop()
-        app.exec_()
+        # app.exec_()
+
+    def createDatabase(self):
+        pass
+
+    def loadDatabase(self):
+        pass
 
     def EventLoop(self):
         self.list_kosd = self.GetCodeListByMarket("10")
         self.code_list = self.GetCondition()
         # print('관심종목리스트:', self.code_list)
         self.SetRealReg("1001", self.code_list, "20;41", "0")
-        self.hogaUpdate()
+        # self.hogaUpdate()
 
     def hogaUpdate(self):
         pass
 
-
-    '''
-    # SoulsnoW eventloop
-    def EventLoop(self):
-        while True:
-            if not self.hogaQ.empty():
-                work = self.hogaQ.get()
-                if type(work) == list:
-                    self.UpdateRealreg(work)
-                elif type(work) == str:
-                    self.RunWork(work)
-            time_loop = timedelta_sec(0.25)
-            while datetime.datetime.now() < time_loop:
-                pythoncom.PumpWaitingMessages()
-                time.sleep(loop_sleeptime)
-    '''
 
     def GetCondition(self):
         # 조건식 load
@@ -103,6 +95,10 @@ class Worker:
         # print('종목코드: ', len(codes), codes)
         return  code_list
 
+
+    #######################
+    # Kiwoom _handler [SLOT]
+    #######################
 
     def _handler_login(self, err_code):
         logging.info(f"hander login {err_code}")
@@ -167,6 +163,8 @@ class Worker:
         # 여기서 real_data 수신로그를 windowQ로 보낸다
         self.windowQ.put(['수신시간', str(datetime.datetime.now().strftime("%H:%M:%S.%f"))])
 
+        if realdata == '':
+            return
         if realtype == "주식체결":
             # print('실시간 주식체결')
             try:
@@ -305,6 +303,31 @@ class Worker:
                 logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
             else:
                 self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
+        # elif realtype == '장시작시간':     # 일단 soulsnow의 code를 잠시 그대로 둔다.
+        #     if self.dict_intg['장운영상태'] == 8:
+        #         return
+        #     try:
+        #         self.dict_intg['장운영상태'] = int(self.GetCommRealData(code, 215))
+        #         current = self.GetCommRealData(code, 20)
+        #         remain = self.GetCommRealData(code, 214)
+        #     except Exception as e:
+        #         self.windowQ.put([1, f'OnReceiveRealData 장시작시간 {e}'])
+        #     else:
+        #         self.OperationAlert(current, remain)
+
+        elif realtype == '업종지수':
+            # if self.dict_bool['실시간데이터수신중단']:
+            #     return
+            # self.dict_intg['주식체결수신횟수'] += 1
+            # self.dict_intg['초당주식체결수신횟수'] += 1
+            try:
+                c = abs(float(self.GetCommRealData(code, 10)))
+                v = int(self.GetCommRealData(code, 15))
+                d = self.GetCommRealData(code, 20)
+            except Exception as e:
+                self.windowQ.put([1, f'OnReceiveRealData 업종지수 {e}'])
+            else:
+                self.UpdateUpjongjisu(code, d, c, v)
 
     def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
@@ -628,7 +651,7 @@ class Worker:
         while not self.received:
             pythoncom.PumpWaitingMessages()
 
-        return self.tr_data
+        return self.tr_data       # df output항목을 columns로 하는 데이터프레임을 반환(_handler_tr과 상호작용
 
     def SetRealReg(self, screen, code_list, fid_list, real_type):
         ret = self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen, code_list, fid_list, real_type)
@@ -682,4 +705,3 @@ class Worker:
 
     def CurrentTime(self):
         return time.strftime('%H%M%S')
-)
