@@ -37,7 +37,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             self.UpdateGwansim('temp')
     def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
         # todo
-        for i in self.gwansim_code:
+        for i , (code, name) in enumerate(self.gwansim_code.items()):
 
             # item = self.gwansim_code[i]
             print('관심종목리스트:$$', code, name)
