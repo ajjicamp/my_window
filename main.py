@@ -8,7 +8,7 @@ from writer import Writer
 from hoga import HogaWindow
 
 # app =QtWidgets.QApplication(sys.argv)
-form_class = uic.loadUiType('mywindow.ui')[0]
+form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/mywindow.ui')[0]
 
 class MyWindow(QtWidgets.QMainWindow, form_class):
     def __init__(self):
@@ -19,16 +19,32 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         # self.show()
         # todo pyqtSlot 설정
         self.writer = Writer(windowQ)
-        self.writer.data0.connect(self.UpdateTexedit)
-        self.writer.data1.connect(self.DrawChart)
+        # self.writer.data0.connect(self.UpdateTexedit)
+        self.writer.data0.connect(self.ExeOrder)
+        self.writer.data1.connect(self.UpdateGwansim)
         self.writer.data2.connect(self.UpdateTablewidget)
         self.writer.start()
 
         # app.exec_()
     # @QtCore.pyqtSlot(list)
-    def UpdateTexedit(self, msg):
-        now = datetime.datetime.now()
-        self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
+    def ExeOrder(self, msg):
+        if msg[0] == '수신시간':
+            now = datetime.datetime.now()
+            self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
+        elif msg[0] == '관심종목코드':
+            self.gwansim_code = msg[1]  # {관심종목코드, 관심종목이름} type(dict)
+            print('관심종목코드:$$', self.gwansim_code)
+            self.UpdateGwansim('temp')
+    def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
+        # todo
+        for i in self.gwansim_code:
+
+            # item = self.gwansim_code[i]
+            print('관심종목리스트:$$', code, name)
+
+        # 종목명을 indexkey로 찾아서 입력해야 한다.
+        # item = data[]
+        # self.table_gwansim =
 
     def DrawChart(self, data):
         pass

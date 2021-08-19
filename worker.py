@@ -33,8 +33,16 @@ class Worker:
         self.tr_record = None
 
         self.realType = RealType()        # class 인스턴스
-        self.real_data_dict = {}
-        self.real_data_df = {}           # 딕셔너리의 값에 DataFrame을 저장할 변수
+
+
+        # self.real_data_dict = {}
+
+        # data = (code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+
+        columns_gs = ['종목명', '현재가', '등락율', '전일거래량대비율', '체결강도', '누적거래대금', '시가' , '고가', '저가', '전일종가', '거래량', '체결시간']
+        self.chaegyeol_data_df = pd.DataFrame(columns=columns_gs)  # real_data를 저장할 DataFrame 변수
+
+        self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
 
         self.list_kosd = None
         self.code_list = None
@@ -57,7 +65,7 @@ class Worker:
         self.loadDatabase()
         self.CommConnect(block=True)
         self.EventLoop()
-        # app.exec_()
+        app.exec_()
 
     def createDatabase(self):
         pass
@@ -67,9 +75,13 @@ class Worker:
 
     def EventLoop(self):
         self.list_kosd = self.GetCodeListByMarket("10")
-        self.code_list = self.GetCondition()
+
+        # setrealreg하기 위해 종목코드를  ';'로 구분하는 리스트자료로 만듬.
+        self.code_list = self.GetCondition()[1]
         # print('관심종목리스트:', self.code_list)
-        self.SetRealReg("1001", self.code_list, "20;41", "0")
+        ret = self.SetRealReg("1001", self.code_list, "20;41", "0")
+        if ret == 0:
+            print("관심종목이 정상 등록되었습니다.")
         # self.hogaUpdate()
 
     def hogaUpdate(self):
@@ -80,22 +92,24 @@ class Worker:
         # 조건식 load
         self.GetConditionLoad()
         conditions = self.GetConditionNameList()
-        # 0번 조건식에 해당하는 종목 리스트 출력
-        condition_index = conditions[0][0]
-        condition_name = conditions[0][1]
-        codes = self.SendCondition("0101", condition_name, condition_index, 0)
+        # 0번 조건식 가져오기
+        condition_index = conditions[0][0]      # 조건검색식 이름 (여기서는 '마하세븐)
+        condition_name = conditions[0][1]       # 조건검색식 번호 (여기서는 001을 사용)
 
-        code_list =None
-        for i, code in enumerate(codes):
-            if i == 0:
-                code_list = code
-            else:
-                code_list = code_list + ';' + code
+        # 0번 조건식으로 코드리스트 조회하기(self.tr_condition_data 및 self.code_list를 tuple로 반환)
+        codes = self.SendCondition("0101", condition_name, condition_index, 0)   # codes[0] type(list)  , codes[1] type(str)
+        # print('codes[1]', codes[1])
 
-        # print('종목코드: ', len(codes), codes)
-        return  code_list
+        # 아래는 한종목씩 조회해야 한다.
+        codes_names = {}
+        for code in codes[0]:
+            name = self.GetMasterCodeName(code)
+            codes_names[code] = name
 
+        # print('code_name$$', codes_names)
+        self.windowQ.put(('관심종목코드', codes_names))
 
+        return codes
     #######################
     # Kiwoom _handler [SLOT]
     #######################
@@ -111,8 +125,10 @@ class Worker:
 
     def _handler_tr_condition(self, screen_no, code_list, cond_name, cond_index, next):
         # print('code_list: ', code_list)
-        codes = code_list.split(';')[:-1]
-        self.tr_condition_data = codes
+        self.code_list = code_list  # 코드리스트 구분자 ';'    type(str)
+        codes = self.code_list.split(';')[:-1]
+        self.tr_condition_data = codes  # 코드리스트 구분자를 없앤 type(list)
+        # print('codes:$$ ', self.tr_condition_data)
         self.tr_condition_loaded= True
 
     def _handler_tr(self, screen, rqname, trcode, record, next):
@@ -161,16 +177,16 @@ class Worker:
 
 
         # 여기서 real_data 수신로그를 windowQ로 보낸다
-        self.windowQ.put(['수신시간', str(datetime.datetime.now().strftime("%H:%M:%S.%f"))])
+        self.windowQ.put(('수신시간', str(datetime.datetime.now().strftime("%H:%M:%S.%f"))))
 
         if realdata == '':
             return
         if realtype == "주식체결":
             # print('실시간 주식체결')
             try:
-                c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
                 per = float(self.GetCommRealData(code, 12))  # 등락율 percent
                 vp = abs(int(float(self.GetCommRealData(code, 30))))  # 전일거래량대비율 volume percent
+                c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
                 ch = int(float(self.GetCommRealData(code, 228)))  # 체결강도 chaegyeol height
                 m = int(self.GetCommRealData(code, 14))  # 누적거래대금 mount
                 o = abs(int(self.GetCommRealData(code, 16)))  # 시가 open
@@ -186,9 +202,13 @@ class Worker:
                 # self.log.info(f"[{strtime()}] _h_real_data 주식체결 {e}")
 
             else:
-                # pass
-                self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
-
+                # data = (code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+                data = (name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+                self.chaegyeol_data_df.at[code] = data
+                # print('체결틱:', self.chaegyeol_data_df)
+                # self.real_data_df.at[code] = data
+                # self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
+                # print('real_data', data)
         elif realtype == "주식호가잔량":
             # print('실시간 호가잔량: ', realtype)
 
@@ -330,6 +350,9 @@ class Worker:
                 self.UpdateUpjongjisu(code, d, c, v)
 
     def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
+        UpdateWindow = {}
+        UpdateWindow['관심종목'] = (code,name,c,per,vp,ch,m,o,h,ll,prec,v,c)
+        self.windowQ.put(UpdateWindow)
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
         # 다음으로 매수, 매도, 조건분석을 위해 data를 dataframe, sqlite3 DB에 저장해야 한다.
         pass
@@ -655,7 +678,6 @@ class Worker:
 
     def SetRealReg(self, screen, code_list, fid_list, real_type):
         ret = self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen, code_list, fid_list, real_type)
-        print('ret:', ret)
         return ret
 
     def SetRealRemove(self, screen, del_code):
@@ -688,7 +710,7 @@ class Worker:
         while not self.tr_condition_loaded:
             pythoncom.PumpWaitingMessages()
 
-        return self.tr_condition_data
+        return (self.tr_condition_data, self.code_list)
 
     def SendConditionStop(self, screen, cond_name, index):
         self.ocx.dynamicCall("SendConditionStop(QString, QString, int)", screen, cond_name, index)

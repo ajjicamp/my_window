@@ -6,7 +6,7 @@ import pandas as pd
 from PyQt5 import QtCore
 import datetime
 class Writer(QtCore.QThread):
-    data0 = QtCore.pyqtSignal(list)
+    data0 = QtCore.pyqtSignal(tuple)  # 실시간 수신로그 및
     data1 = QtCore.pyqtSignal(pd.DataFrame)
     data2 = QtCore.pyqtSignal(pd.DataFrame)
 
@@ -19,24 +19,29 @@ class Writer(QtCore.QThread):
         while True:
             if not self.windowQ.empty():
                 data = self.windowQ.get()
-                # print(data)
-
-                self.data0.emit(data)
-
-
-                # data[key]
-                # if data.key() == '수신시간':
-                #     self.data0.emit([datetime.datetime.now(), data[1]])
-                # print('windowQ size: ', self.windowQ.qsize() )
-                # if type(data) == str:
-                #     if '이벤트루프 슬립시간' in data:
-                #         self.int_elst = float(data.split(" ")[-1])
-                # elif type(data) == list:
+                self.data0.emit(data)    # tuple[0] ; 수신시간, 관심종목코드 tuple[1] : value
+                # if data[0] == '수신시간':
                 #     self.data0.emit(data)
-                #     if data[0] == 1 and data[1] == '시스템 종료':
-                #         sys.exit()
-                # elif type(data) == pd.DataFrame:
-                #     if '현재가' in data.columns[0]:
-                #         self.data1.emit(data)
-                #     else:
-                #         self.data2.emit(data)
+                #
+                # elif data[0] == '관심종목코드':
+                #     self.data0.emit(data)
+
+
+
+
+                    # data[key]
+                    # if data.key() == '수신시간':
+                    #     self.data0.emit([datetime.datetime.now(), data[1]])
+                    # print('windowQ size: ', self.windowQ.qsize() )
+                    # if type(data) == str:
+                    #     if '이벤트루프 슬립시간' in data:
+                    #         self.int_elst = float(data.split(" ")[-1])
+                    # elif type(data) == list:
+                    #     self.data0.emit(data)
+                    #     if data[0] == 1 and data[1] == '시스템 종료':
+                    #         sys.exit()
+                    # elif type(data) == pd.DataFrame:
+                    #     if '현재가' in data.columns[0]:
+                    #         self.data1.emit(data)
+                    #     else:
+                    #         self.data2.emit(data)
