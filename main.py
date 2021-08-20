@@ -32,15 +32,29 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             now = datetime.datetime.now()
             self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
         elif msg[0] == '관심종목코드':
-            self.gwansim_code = msg[1]  # {관심종목코드, 관심종목이름} type(dict)
-            print('관심종목코드:$$', self.gwansim_code)
-            self.UpdateGwansim('temp')
-    def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
-        # todo
-        for i , (code, name) in enumerate(self.gwansim_code.items()):
+            data = msg[1]  # dict  key:code, value:dataframe
+            print('관심종목코드:$$', data)
+            self.UpdateGwansim(data)
 
-            # item = self.gwansim_code[i]
-            print('관심종목리스트:$$', code, name)
+    def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
+
+        # todo
+        for row, (code, name) in enumerate(self.gwansim_code.items()):
+            item = QtWidgets.QTableWidgetItem(name)
+            # print('item', item)
+            self.table_gwansim.setItem(row, 0, item)
+
+            item = format(int(data['현재가']), ',')
+            item = QtWidgets.QTableWidgetItem(str(item))
+            self.table_gwansim.setItem(row, 0, item)
+
+
+
+            # item = QtWidgets.QTableWidgetItem
+
+
+
+            # print('관심종목리스트:$$', code, name)
 
         # 종목명을 indexkey로 찾아서 입력해야 한다.
         # item = data[]

@@ -7,6 +7,7 @@ import parser
 from RealType import *
 import pandas as pd
 import time
+import zipfile
 from multiprocessing import Process, Queue, current_process
 # from hoga import Hoga
 import logging
@@ -98,18 +99,33 @@ class Worker:
 
         # 0번 조건식으로 코드리스트 조회하기(self.tr_condition_data 및 self.code_list를 tuple로 반환)
         codes = self.SendCondition("0101", condition_name, condition_index, 0)   # codes[0] type(list)  , codes[1] type(str)
-        # print('codes[1]', codes[1])
+        print('codes[1]', codes[1])
 
         # 아래는 한종목씩 조회해야 한다.
-        codes_names = {}
+        codes_data = {}
         for code in codes[0]:
+            data = []
             name = self.GetMasterCodeName(code)
-            codes_names[code] = name
+            dict_info = self.block_request('opt10007', 종목코드=code, output='시세표성정보요청')
+            data.append(name)
+            data.append(dict_info.at[0, '현재가'])
+            data.append(dict_info.at[0,'전일비'])
+            data.append(dict_info.at[0,'등락률'])
+            data.append(dict_info.at[0,'거래량'])
+            data.append(dict_info.at[0,'거래대금'])
+            # ch = dict_info.at[0,'체결강도']
 
-        # print('code_name$$', codes_names)
-        self.windowQ.put(('관심종목코드', codes_names))
+            codes_data[code] = data
+            print('관심종목정보', data)
+            print('dict', codes_data)
+            time.sleep(3.6)
+
+        print('code_name$$', codes_data)
+        self.windowQ.put(('관심종목코드', codes_data))
 
         return codes
+
+
     #######################
     # Kiwoom _handler [SLOT]
     #######################
@@ -655,10 +671,12 @@ class Worker:
         :return:
         '''
         trcode = trcode[0].lower()
-        lines = parser.read_enc(trcode)
-        self.tr_items = parser.parse_dat(trcode, lines)
+        # lines = parser.read_enc(trcode)
+        lines = self.ReadEnc(trcode)
+
+        self.tr_items = self.ParseDat(trcode, lines)
         self.tr_record = kwargs["output"]
-        next = kwargs["next"]
+        # next = kwargs["next"]
 
         # set input
         for id in kwargs:
@@ -675,6 +693,35 @@ class Worker:
             pythoncom.PumpWaitingMessages()
 
         return self.tr_data       # df output항목을 columns로 하는 데이터프레임을 반환(_handler_tr과 상호작용
+
+    def ReadEnc(self, trcode):
+        openapi_path = "C:/OpenAPI"
+        enc = zipfile.ZipFile(f'{openapi_path}/data/{trcode}.enc')
+
+        liness = enc.read(trcode.upper() + '.dat').decode('cp949')
+        return liness
+
+    def ParseDat(self, trcode, liness):
+        liness = liness.split('\n')
+        start = [i for i, x in enumerate(liness) if x.startswith('@START')]
+        end = [i for i, x in enumerate(liness) if x.startswith('@END')]
+        block = zip(start, end)
+        enc_data = {'trcode': trcode, 'input': [], 'output': []}
+        for start, end in block:
+            block_data = liness[start - 1:end + 1]
+            block_info = block_data[0]
+            block_type = 'input' if 'INPUT' in block_info else 'output'
+            record_line = block_data[1]
+            tokens = record_line.split('_')[1].strip()
+            record = tokens.split('=')[0]
+            fields = block_data[2:-1]
+            field_name = []
+            for line in fields:
+                field = line.split('=')[0].strip()
+                field_name.append(field)
+            fields = {record: field_name}
+            enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
+        return enc_data
 
     def SetRealReg(self, screen, code_list, fid_list, real_type):
         ret = self.ocx.dynamicCall("SetRealReg(QString, QString, QString, QString)", screen, code_list, fid_list, real_type)
