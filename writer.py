@@ -6,9 +6,11 @@ import pandas as pd
 from PyQt5 import QtCore
 import datetime
 class Writer(QtCore.QThread):
-    data0 = QtCore.pyqtSignal(tuple)  # 실시간 수신로그 및
-    data1 = QtCore.pyqtSignal(pd.DataFrame)
-    data2 = QtCore.pyqtSignal(pd.DataFrame)
+    UpdateTextedit= QtCore.pyqtSignal(tuple)  # 실시간 수신로그 및
+    UpdateGwansim = QtCore.pyqtSignal(tuple)
+    UpdateJango = QtCore.pyqtSignal(tuple)
+    UpdateHoga    = QtCore.pyqtSignal(tuple)
+    UpdateChart   = QtCore.pyqtSignal(tuple)
 
     def __init__(self, windowQ):
         super().__init__()
@@ -19,5 +21,13 @@ class Writer(QtCore.QThread):
         while True:
             if not self.windowQ.empty():
                 data = self.windowQ.get()
-                self.data0.emit(data)    # tuple[0] ; 수신시간, 관심종목코드 tuple[1] : value
-                print('write_data', data)
+                if data[0] == 'LOG':
+                    self.UpdateTextedit.emit(data[1])
+                elif data[0] == 'GSJM':   # 관심종목
+                    self.UpdateGwansim.emit(data[1])
+                elif data[0] == 'ACC':   # 계좌잔고
+                    self.UpdateJango.emit(data[1])
+                elif data[0] == 'HOGA':   # 관심종목
+                    self.UpdateHoga.emit(data[1])
+                elif data[0] == 'Chart':   # 관심종목
+                    self.UpdateChart.emit(data[1])

@@ -18,7 +18,7 @@
     <item row="1" column="0">
      <widget class="QTabWidget" name="code_chart">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="teb_daily">
        <attribute name="title">
@@ -43,9 +43,9 @@
      </widget>
     </item>
     <item row="0" column="0">
-     <widget class="QTabWidget" name="market">
+     <widget class="QTabWidget" name="market_chart">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="kospi">
        <attribute name="title">
@@ -416,8 +416,14 @@
           <layout class="QGridLayout" name="gridLayout_3">
            <item row="0" column="0">
             <widget class="QTableWidget" name="table_gwansim">
+             <property name="cursor" stdset="0">
+              <cursorShape>ArrowCursor</cursorShape>
+             </property>
              <property name="alternatingRowColors">
               <bool>true</bool>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
              </property>
              <property name="rowCount">
               <number>20</number>
@@ -468,7 +474,7 @@
              <row/>
              <column>
               <property name="text">
-               <string>종목명</string>
+               <string>    종목명  </string>
               </property>
              </column>
              <column>
@@ -672,7 +678,7 @@
      <x>0</x>
      <y>0</y>
      <width>1187</width>
-     <height>21</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>

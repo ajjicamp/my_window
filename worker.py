@@ -3,14 +3,13 @@ from PyQt5.QtWidgets import *
 from PyQt5.QAxContainer import *
 import pythoncom
 import datetime
-import parser
 from RealType import *
 import pandas as pd
 import time
 import zipfile
+import logging
 from multiprocessing import Process, Queue, current_process
 # from hoga import Hoga
-import logging
 
 app = QApplication(sys.argv)
 logging.basicConfig(filename="../log.txt", level=logging.ERROR)
@@ -29,12 +28,13 @@ class Worker:
         self.tr_remained = False
         self.condition_loaded = False
 
+        self.dict_code_name = {} # 조건검색결과 종목코드리스트의 {종목코드:종목명, 종목코드: 종목명 ,,,,,}
+
         self.tr_items = None                # tr input/output items
         self.tr_data = None                 # tr output data
         self.tr_record = None
 
         self.realType = RealType()        # class 인스턴스
-
 
         # self.real_data_dict = {}
 
@@ -43,15 +43,12 @@ class Worker:
         columns_gs = ['종목명', '현재가', '등락율', '전일거래량대비율', '체결강도', '누적거래대금', '시가' , '고가', '저가', '전일종가', '거래량', '체결시간']
         self.chaegyeol_data_df = pd.DataFrame(columns=columns_gs)  # real_data를 저장할 DataFrame 변수
 
-        self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
+        # self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
 
         self.list_kosd = None
         self.code_list = None
 
-        # 조건식때문에 작동하지 않는다. 언제 작동하려고 준비한건지
-        # if login:
         self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
-        # self._set_signals_slots()
         self.ocx.OnEventConnect.connect(self._handler_login)
         self.ocx.OnReceiveTrData.connect(self._handler_tr)
         self.ocx.OnReceiveRealData.connect(self._handler_real)
@@ -65,6 +62,7 @@ class Worker:
         self.createDatabase()
         self.loadDatabase()
         self.CommConnect(block=True)
+        self.GetCondition()
         self.EventLoop()
         app.exec_()
 
@@ -75,55 +73,79 @@ class Worker:
         pass
 
     def EventLoop(self):
-        self.list_kosd = self.GetCodeListByMarket("10")
-
-        # setrealreg하기 위해 종목코드를  ';'로 구분하는 리스트자료로 만듬.
-        self.code_list = self.GetCondition()[1]
-        # print('관심종목리스트:', self.code_list)
-        ret = self.SetRealReg("1001", self.code_list, "20;41", "0")
-        if ret == 0:
-            print("관심종목이 정상 등록되었습니다.")
-        # self.hogaUpdate()
+        self.accno = self.GetLoginInfo('ACCNO')    # list
+        print(self.accno)
+        self.GetAccountjanGo()
 
     def hogaUpdate(self):
         pass
 
-
     def GetCondition(self):
-        # 조건식 load
+        # kiwoom 조건검색식 load
         self.GetConditionLoad()
         conditions = self.GetConditionNameList()
         # 0번 조건식 가져오기
-        condition_index = conditions[0][0]      # 조건검색식 이름 (여기서는 '마하세븐)
-        condition_name = conditions[0][1]       # 조건검색식 번호 (여기서는 001을 사용)
+        condition_index = conditions[0][0]      # 첫번째 조건검색식의 이름 (여기서는 '마하세븐)
+        condition_name = conditions[0][1]       # 첫번째 조건검색식의 번호 (첫번째라고 반드시 1번은 아니다.)
 
-        # 0번 조건식으로 코드리스트 조회하기(self.tr_condition_data 및 self.code_list를 tuple로 반환)
-        codes = self.SendCondition("0101", condition_name, condition_index, 0)   # codes[0] type(list)  , codes[1] type(str)
-        print('codes[1]', codes[1])
+        codes = self.SendCondition("0101", condition_name, condition_index, 0)    # 조건검색식에 해당하는 종목리스트 얻기
+        # codes[0]은 list type의 리스트로써 종목명을 얻는 tr > GetMasterCodeName()할때 필요.
+        # codes[1]은 ';'로 구분된 str type으로써 real 등록 > SetRaalReg할 때 필요.
 
-        # 아래는 한종목씩 조회해야 한다.
-        codes_data = {}
+        # print('codes[1]', codes[1])
+
+        # 관심종목의 namelistdict{code:name}를 만듬.
+        # self.dict_code_name = {}
         for code in codes[0]:
-            data = []
             name = self.GetMasterCodeName(code)
-            dict_info = self.block_request('opt10007', 종목코드=code, output='시세표성정보요청')
-            data.append(name)
-            data.append(dict_info.at[0, '현재가'])
-            data.append(dict_info.at[0,'전일비'])
-            data.append(dict_info.at[0,'등락률'])
-            data.append(dict_info.at[0,'거래량'])
-            data.append(dict_info.at[0,'거래대금'])
-            # ch = dict_info.at[0,'체결강도']
+            self.dict_code_name[code] = name
 
-            codes_data[code] = data
-            print('관심종목정보', data)
-            print('dict', codes_data)
-            time.sleep(3.6)
+        # print('codelistname', self.dict_code_name)
+        self.windowQ.put(['GSJM', ('initial', self.dict_code_name)])
 
-        print('code_name$$', codes_data)
-        self.windowQ.put(('관심종목코드', codes_data))
+        # 관심종목 실시간 등록
+        ret = self.SetRealReg("1001", codes[1], "20;41", "0")
+        if ret == 0:
+            print("관심종목이 정상 등록되었습니다.")
 
-        return codes
+    def GetAccountjanGo(self):
+        # while True:
+        # df1 = self.block_request('opw00004', 계좌번호=self.accno[0], 비밀번호='', 상장폐지조회구분=0,
+        #                         비밀번호입력매체구분='00', output='계좌평가현황', next=0)
+        # print('00004', df1)
+
+        dfs = []
+        df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='', 비밀번호입력매체구분='00',
+                            조회구분=2, output='계좌평가잔고개별합산', next=0)
+        # print(df.head())
+        dfs.append(df)
+
+        while self.tr_remained:
+            df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='', 비밀번호입력매체구분='00',
+                                  조회구분=2, output='계좌평가잔고개별합산', next=2)
+            dfs.append(df)
+            time.sleep(1)
+        print('00018\n', dfs)
+
+        cnt = len(df)
+        acc = []
+        for row in range(cnt):
+            if not df.loc[row]['종목명'] == '':
+                # tablewidget에 setitem하기 위해 str로 미리 바꾸면 나중 조건검토할 때 계산하기가 어렵다.
+                name = df.loc[row]['종목명']
+                quan =str(int(df.loc[row]['보유수량']))
+                buy_prc = str(int(df.loc[row]['매입가']))
+                cur = str(int(df.loc[row]['현재가']))
+                Y_rate = str(int(df.loc[row]['수익률(%)']))
+                EG = str(int(df.loc[row]['평가손익']))
+                EA = str(int(df.loc[row]['평가금액']))
+                data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
+                acc.append(data)
+                self.windowQ.put(['ACC', ('잔고있음', acc)])
+            else:
+                self.windowQ.put(['ACC', ('잔고없음', '')])
+
+        print('acc', acc)
 
 
     #######################
@@ -183,56 +205,53 @@ class Worker:
             self.received = True
         except:
             pass
-
+    #######
+    # real data 수신
+    #######
     def _handler_real(self, code, realtype, realdata):
 
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
         # print('real_data', realtype)
-        # self.real_data_dict = {}
-        # self.start_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
 
-
+        # 수신시간
+        receiving_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
         # 여기서 real_data 수신로그를 windowQ로 보낸다
-        self.windowQ.put(('수신시간', str(datetime.datetime.now().strftime("%H:%M:%S.%f"))))
+        self.windowQ.put(['LOG',('수신시간', receiving_time)])
 
         if realdata == '':
             return
         if realtype == "주식체결":
             # print('실시간 주식체결')
             try:
-                per = float(self.GetCommRealData(code, 12))  # 등락율 percent
-                vp = abs(int(float(self.GetCommRealData(code, 30))))  # 전일거래량대비율 volume percent
+                # real에서 종목명을 조회하면 tr 조회가 너무 많아져서 lock
+                name = self.dict_code_name[code]  # 종목명
                 c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
-                ch = int(float(self.GetCommRealData(code, 228)))  # 체결강도 chaegyeol height
-                m = int(self.GetCommRealData(code, 14))  # 누적거래대금 mount
+                db = int(self.GetCommRealData(code, 11))  # 전일대비
+                per = float(self.GetCommRealData(code, 12))  # 등락율 percent
+                v = int(self.GetCommRealData(code, 15))  # volume 거래량
+                cv = int(self.GetCommRealData(code, 13))  # 누적 거래량
+                cva = int(self.GetCommRealData(code, 14))  # 누적거래대금 amount
                 o = abs(int(self.GetCommRealData(code, 16)))  # 시가 open
                 h = abs(int(self.GetCommRealData(code, 17)))  # 고가 high
                 ll = abs(int(self.GetCommRealData(code, 18)))  # 저가 low
+                vp = abs(int(float(self.GetCommRealData(code, 30))))  # 전일거래량대비율 volume percent
+                ch = int(float(self.GetCommRealData(code, 228)))  # 체결강도 chaegyeol height
                 prec = self.GetMasterLastPrice(code)  # pre price 전일종가?          ===> 전일대비를 이용하면 될텐데 즉, c - 11
-                v = int(self.GetCommRealData(code, 15))  # volume 거래량
                 d = self.GetCommRealData(code, 20)  # 체결시간 datetime
-                name = self.GetMasterCodeName(code)  # 종목명
 
             except Exception as e:
                 print('에러발생:', e)
                 # self.log.info(f"[{strtime()}] _h_real_data 주식체결 {e}")
 
             else:
-                # data = (code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
-                data = (name, c, per, vp, ch, m, o, h, ll, prec, v, d)
-                self.chaegyeol_data_df.at[code] = data
-                # print('체결틱:', self.chaegyeol_data_df)
-                # self.real_data_df.at[code] = data
-                # self.UpdateChaegyeolData(code, name, c, per, vp, ch, m, o, h, ll, prec, v, d)
-                # print('real_data', data)
-        elif realtype == "주식호가잔량":
-            # print('실시간 호가잔량: ', realtype)
+                self.UpdateChaegyeolData(code, name, c, db, per, v, cv,cva, o, h, ll, vp, ch, prec, d)
 
-            # self.int_cthj += 1
-            # self.int_ctrhj += 1
+        elif realtype == "주식호가잔량":
+
             try:
+                # 호가시간
+                # hg_tm = self.GetCommRealData(code, 21)
                 # 직전대비
-                hg_tm = self.GetCommRealData(code, 21)
                 hg_db = [
                     int(float(self.GetCommRealData(code, 139))),
                     int(self.GetCommRealData(code, 90)),
@@ -338,7 +357,8 @@ class Worker:
                 # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
                 logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
             else:
-                self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
+                # self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
+                self.UpdateHogaData(code, hg_db, hg_sr, hg_ga, per)
         # elif realtype == '장시작시간':     # 일단 soulsnow의 code를 잠시 그대로 둔다.
         #     if self.dict_intg['장운영상태'] == 8:
         #         return
@@ -365,19 +385,42 @@ class Worker:
             else:
                 self.UpdateUpjongjisu(code, d, c, v)
 
-    def UpdateChaegyeolData(self, code, name, c, per, vp, ch, m, o, h, ll, prec, v, d):
-        UpdateWindow = {}
-        UpdateWindow['관심종목'] = (code,name,c,per,vp,ch,m,o,h,ll,prec,v,c)
-        self.windowQ.put(UpdateWindow)
+    def UpdateChaegyeolData(self, code, name, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d):
+
+        self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
+        self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
+        self.windowQ.put(['HOGA', ('chaegyeol', code, v)])
+        self.SaveChaegyeolData()
+
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
-        # 다음으로 매수, 매도, 조건분석을 위해 data를 dataframe, sqlite3 DB에 저장해야 한다.
-        pass
+        # 다음으로 매수, 매도, 조건분석을 위해 data를 datafragme, sqlite3 DB에 저장해야 한다.
 
-    def UpdateHogaData(self, code, hg_tm, hg_db, hg_sr, hg_ga, per):
+    def SaveChaegyeolData(self, code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d):
+        file_name = "mh_" + datetime.datetime.now().strftime("%m%d") + ".db"
+        con = sqlite3.connect(file_name)
+
+        # cursor = con.cursor()
+        with con:
+            df_len = len(self.real_sign_df)
+            print('df_len01: ', df_len)
+            print('null??: ', self.real_sign_df['현재시간'].isnull().sum())
+            # self.real_sign_df.to_sql('주식체결' , con, if_exists='append', chunksize=df_len)
+            # self.real_sign_df.to_sql('주식체결' , con, if_exists='append', chunksize=2100)
+
+            self.real_sign_df.to_sql('sign' , con, if_exists='append', chunksize=2100)
+
+
+            df_len = len(self.real_hoga_df)
+            print('df_len02: ', df_len)
+            # #self.real_hoga_df.to_sql('주식호가잔량' , con, if_exists='append', chunksize=df_len)
+            self.real_hoga_df.to_sql('hoga' , con, if_exists='append', chunksize=2100)
+
+
+    def UpdateHogaData(self, code, hg_db, hg_sr, hg_ga, per):
         # 호가창, 관심종목창, 주식잔고창 update
-
+        self.windowQ.put(['HOGA', ('real', code, hg_db, hg_sr, hg_ga, per)])
         # print('호가잔량데이터 수신처리')
-        self.hogaQ.put([code,hg_tm, hg_db, hg_sr, hg_ga, per])
+        self.hogaQ.put([code,hg_db, hg_sr, hg_ga, per])
         # HogaUpdate()
 
     def GetSanghanga(self, code):
