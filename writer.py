@@ -27,7 +27,7 @@ class Writer(QtCore.QThread):
                     self.UpdateGwansim.emit(data[1])
                 elif data[0] == 'ACC':   # 계좌잔고
                     self.UpdateJango.emit(data[1])
-                elif data[0] == 'HOGA':   # 관심종목
+                elif data[0] == 'HOGA':   # 호가
                     self.UpdateHoga.emit(data[1])
                 elif data[0] == 'Chart':   # 관심종목
                     self.UpdateChart.emit(data[1])

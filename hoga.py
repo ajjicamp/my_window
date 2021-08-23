@@ -1,4 +1,7 @@
 # 호가창을 업데이트하는 모듈
+# 여기서는 selected_stock에 대한 hoga_window 출력과 매수매도주문처리를 위한 사전 작업, 그리고 계좌잔고의 관리를 담당한다.
+# 실시간 데이터(체결틱, 호가데이터)를 받는다.
+
 import datetime
 import sys
 import time

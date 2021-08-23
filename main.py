@@ -25,6 +25,9 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.table_gwansim.setColumnWidth(0, 120)
         self.table_account.setColumnWidth(0, 120)
 
+        self.seleted_stock = None
+        self.code_index = {}  # 나중 update할때 종목코드가 위치한 row값을 찾기위해서 변수저장
+
         # print('self: ', self)
         # print('form_class', form_class)
         # self.show()
@@ -50,29 +53,36 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             self.textEdit.append(msg[1])
 
     def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
-        code_index = {}  # 나중 update할때 종목코드가 위치한 row값을 찾기위해서 변수저장
         if data[0] == 'initial':
             # print(type(data[1]))
             dict_code_name = data[1]  # dict, data = ('initial',self.dict_code_name )
-            # print('UpGwansim:codelist', dict_code_name)
+
+            # todo 추적관찰필요.
+            self.seleted_stock = list(dict_code_name.keys())[0]
+            print('선택된주식코드', self.seleted_stock)
+
+            print('UpGwansim:codelist', dict_code_name)
             rows = len(dict_code_name)
             self.table_gwansim.setRowCount(rows)
             # self.table_gwansim.setColumnWidth(0, 120)
             for row, (code, name) in enumerate(dict_code_name.items()):
                 item = QtWidgets.QTableWidgetItem(name)
                 self.table_gwansim.setItem(row, 0, item)
-                code_index[code] = row
+                self.code_index[code] = row
 
         elif data[0] == 'real':     # data = ('real', code, name, c, db, per, cv, cva, ch)
             code = data[1]
-            row = code_index[code]
+            code_info = data[2:]
+            row = self.code_index[code] # (name, c, db, per, cv, cva, ch)
 
             for col in range(7):  # table_gwansim columns 수
-                item = QtWidgets.QTableWidgetItem(data[2:][col])
-                self.table_gwansim.setItems(row, col, item)
+                item = str(code_info[col])
+                # print('item', type(item), item)
+                item = QtWidgets.QTableWidgetItem(item)
+                self.table_gwansim.setItem(row, col, item)
 
     def UpdateJango(self, data):
-        print('Up_acc', data[1])
+        # print('Up_acc', data[1])
         if data[0] == '잔고없음':
             item = QtWidgets.QTableWidgetItem('보유잔고없음')
             self.table_account.setItem(0, 0, item)
@@ -80,6 +90,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             jango = data[1]  # data[1] = [(name, quan, buy_prc, cur, Y_rate, EG, EA),반복]
             cnt = len(jango)
             # print('cnt', cnt)
+            # column단위로 item값을 정렬하는 명령어를 찾아서 사용해야 한다. name = 좌측 기타 숫자는 우측 정렬 필요.
             for index1 in range(cnt):
                 for index2 in range(7):
                     item = jango[index1][index2]
@@ -91,7 +102,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         # code를 사용하여 선택된 자료를 송출할 필요가 있다.
         # 그 보다도 선택된 종목에 대한 호가정보만 가져와야 한다.
 
-        code = None   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
+        code = self.seleted_stock   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
         if data[0] == 'real' and data[1] == code :    # data = ('real', code, hg_db, hg_sr, hg_ga, per)
 
             hoga_data = data[2:]
@@ -103,10 +114,8 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     col = index + 0  # 우연히 일치한다.
                     self.table_hoga.setItem(row, col, item)
 
-            pass
         elif data[0] == 'chaegyeol':
-
-        pass
+            pass
 
     def UpdateChart(self, data):
         pass

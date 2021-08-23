@@ -74,7 +74,7 @@ class Worker:
 
     def EventLoop(self):
         self.accno = self.GetLoginInfo('ACCNO')    # list
-        print(self.accno)
+        # print(self.accno)
         self.GetAccountjanGo()
 
     def hogaUpdate(self):
@@ -110,22 +110,25 @@ class Worker:
 
     def GetAccountjanGo(self):
         # while True:
-        # df1 = self.block_request('opw00004', 계좌번호=self.accno[0], 비밀번호='', 상장폐지조회구분=0,
+        # df1 = self.block_request('opw00004', 계좌번호=self.accno[0], 비밀번호='0000', 상장폐지조회구분=0,
         #                         비밀번호입력매체구분='00', output='계좌평가현황', next=0)
         # print('00004', df1)
+        #
+        # print('계좌번호', self.accno[0])
 
+        accno = '8000707411'
         dfs = []
-        df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='', 비밀번호입력매체구분='00',
+        df = self.block_request('opw00018', 계좌번호='8000707411', 비밀번호='0000', 비밀번호입력매체구분='00',
                             조회구분=2, output='계좌평가잔고개별합산', next=0)
         # print(df.head())
         dfs.append(df)
 
         while self.tr_remained:
-            df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='', 비밀번호입력매체구분='00',
+            df = self.block_request('opw00018', 계좌번호='8000707411', 비밀번호='0000', 비밀번호입력매체구분='00',
                                   조회구분=2, output='계좌평가잔고개별합산', next=2)
             dfs.append(df)
             time.sleep(1)
-        print('00018\n', dfs)
+        # print('00018\n', dfs)
 
         cnt = len(df)
         acc = []
@@ -136,7 +139,7 @@ class Worker:
                 quan =str(int(df.loc[row]['보유수량']))
                 buy_prc = str(int(df.loc[row]['매입가']))
                 cur = str(int(df.loc[row]['현재가']))
-                Y_rate = str(int(df.loc[row]['수익률(%)']))
+                Y_rate = str(float(df.loc[row]['수익률(%)']))
                 EG = str(int(df.loc[row]['평가손익']))
                 EA = str(int(df.loc[row]['평가금액']))
                 data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
@@ -145,8 +148,7 @@ class Worker:
             else:
                 self.windowQ.put(['ACC', ('잔고없음', '')])
 
-        print('acc', acc)
-
+        # print('acc\n', acc)
 
     #######################
     # Kiwoom _handler [SLOT]
@@ -371,26 +373,26 @@ class Worker:
         #     else:
         #         self.OperationAlert(current, remain)
 
-        elif realtype == '업종지수':
+        # elif realtype == '업종지수':
             # if self.dict_bool['실시간데이터수신중단']:
             #     return
             # self.dict_intg['주식체결수신횟수'] += 1
             # self.dict_intg['초당주식체결수신횟수'] += 1
-            try:
-                c = abs(float(self.GetCommRealData(code, 10)))
-                v = int(self.GetCommRealData(code, 15))
-                d = self.GetCommRealData(code, 20)
-            except Exception as e:
-                self.windowQ.put([1, f'OnReceiveRealData 업종지수 {e}'])
-            else:
-                self.UpdateUpjongjisu(code, d, c, v)
+            # try:
+            #     c = abs(float(self.GetCommRealData(code, 10)))
+            #     v = int(self.GetCommRealData(code, 15))
+            #     d = self.GetCommRealData(code, 20)
+            # except Exception as e:
+            #     self.windowQ.put([1, f'OnReceiveRealData 업종지수 {e}'])
+            # else:
+                # self.UpdateUpjongjisu(code, d, c, v)
 
     def UpdateChaegyeolData(self, code, name, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d):
 
-        self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
+        # self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
         self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
         self.windowQ.put(['HOGA', ('chaegyeol', code, v)])
-        self.SaveChaegyeolData()
+        # self.SaveChaegyeolData()
 
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
         # 다음으로 매수, 매도, 조건분석을 위해 data를 datafragme, sqlite3 DB에 저장해야 한다.
