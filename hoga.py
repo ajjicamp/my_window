@@ -9,12 +9,13 @@ from PyQt5 import QtWidgets, QAxContainer, uic
 from PyQt5.QtCore import Qt
 import matplotlib.pyplot as plt
 
+app = QtWidgets.QApplication(sys.argv)
+
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False #한글 폰트 사용시 마이너스 폰트 깨짐 해결
 
 hoga_window = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/hoga_window.ui')[0]
-
 class HogaWindow(QtWidgets.QWidget, hoga_window):
     def __init__(self, windowQ, hogaQ):
         super().__init__()
@@ -23,12 +24,14 @@ class HogaWindow(QtWidgets.QWidget, hoga_window):
         self.hogaQ = hogaQ
         self.setupUi(self)
         self.show()
+        app.exec_()
 
         self.start()
 
     def start(self):
         while True:
             if not self.hogaQ.empty():
+                # if
                 hoga = self.hogaQ.get()
                 self.hoga_draw(hoga)
 
@@ -88,4 +91,6 @@ class HogaWindow(QtWidgets.QWidget, hoga_window):
             self.hoga_draw(mywindow.x_pos_nw, mywindow.code_data)
         '''
 
+if __name__ == '__main__':
+    hogawindow = HogaWindow()
 

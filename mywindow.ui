@@ -188,7 +188,7 @@
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QTableWidget" name="tableWidget_2">
+               <widget class="QTableWidget" name="table_hoga1">
                 <property name="verticalScrollBarPolicy">
                  <enum>Qt::ScrollBarAlwaysOff</enum>
                 </property>
@@ -258,7 +258,7 @@
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QTableWidget" name="tableWidget_3">
+               <widget class="QTableWidget" name="table_hoga_selected">
                 <property name="alternatingRowColors">
                  <bool>true</bool>
                 </property>

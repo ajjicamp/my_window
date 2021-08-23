@@ -21,7 +21,7 @@ class Worker:
             app = QApplication(sys.argv)
         # print('name:$$', current_process().name)
         self.windowQ = windowQ
-        self.worderQ = workerQ
+        self.workerQ = workerQ
         self.hogaQ = hogaQ
         self.connected = False              # for login event
         self.received = False               # for tr event
@@ -45,6 +45,9 @@ class Worker:
 
         # self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
 
+        self.selected_code = None
+
+
         self.list_kosd = None
         self.code_list = None
 
@@ -63,6 +66,9 @@ class Worker:
         self.loadDatabase()
         self.CommConnect(block=True)
         self.GetCondition()
+        self.accno = self.GetLoginInfo('ACCNO')    # list
+        # print(self.accno)
+        self.GetAccountjanGo()
         self.EventLoop()
         app.exec_()
 
@@ -73,9 +79,13 @@ class Worker:
         pass
 
     def EventLoop(self):
-        self.accno = self.GetLoginInfo('ACCNO')    # list
-        # print(self.accno)
-        self.GetAccountjanGo()
+        while True:
+            if not self.workerQ.empty():
+                data = self.workerQ.get()
+                if data[0] == 'VAR':
+                    if data[1] == 'selected_code':
+                        self.selected_code  = data[2]    # self.selected_code
+                        print('sele_code', self.selected_code)
 
     def hogaUpdate(self):
         pass
@@ -391,7 +401,9 @@ class Worker:
 
         # self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
         self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
-        self.windowQ.put(['HOGA', ('chaegyeol', code, v)])
+
+        if code == self.selected_code:
+            self.windowQ.put(['HOGA', ('chaegyeol', v)])
         # self.SaveChaegyeolData()
 
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
@@ -420,10 +432,12 @@ class Worker:
 
     def UpdateHogaData(self, code, hg_db, hg_sr, hg_ga, per):
         # 호가창, 관심종목창, 주식잔고창 update
-        self.windowQ.put(['HOGA', ('real', code, hg_db, hg_sr, hg_ga, per)])
-        # print('호가잔량데이터 수신처리')
-        self.hogaQ.put([code,hg_db, hg_sr, hg_ga, per])
-        # HogaUpdate()
+
+        # todo 호가창에 보내는 데이터는 선택된 종몸의 것만 보내야 한다.
+        if code == self.selected_stock:
+            self.windowQ.put(['HOGA', ('real', hg_db, hg_sr, hg_ga, per)])
+            # print('호가잔량데이터 수신처리')
+            # self.hogaQ.put([code, hg_db, hg_sr, hg_ga, per])
 
     def GetSanghanga(self, code):
         predayclose = self.GetMasterLastPrice(code)
