@@ -140,13 +140,16 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                 item_copy.append(self.table_hoga2.item(row, 1))
             '''
 
-            item_1 = self.table_hoga2.item(0,1)
+            self.table_hoga2.setItem(1, 1, self.table_hoga2.item(0,1))
+
+            # item_1 = self.table_hoga2.item(0,1)
+
             # print('item_1', item_1)
             item = str(data[1])  # 첫줄에 새로운값 입력
             item = QtWidgets.QTableWidgetItem(item)
             self.table_hoga2.setItem(0, 1, item)
 
-            self.table_hoga2.setItem(1, 1, item_1)
+            # self.table_hoga2.setItem(1, 1, item_1)
 
             # print('item', item_copy)
 
