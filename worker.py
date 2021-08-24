@@ -12,8 +12,8 @@ from multiprocessing import Process, Queue, current_process
 # from hoga import Hoga
 
 app = QApplication(sys.argv)
-logging.basicConfig(filename="../log.txt", level=logging.ERROR)
-# logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 class Worker:
     def __init__(self, windowQ, workerQ, hogaQ, login=False):
@@ -45,6 +45,7 @@ class Worker:
 
         # self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
 
+        ###############
         self.selected_code = None
 
 
@@ -65,6 +66,8 @@ class Worker:
         self.createDatabase()
         self.loadDatabase()
         self.CommConnect(block=True)
+        self.list_kosd = self.GetCodeListByMarket('10')
+
         self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
         # print(self.accno)
@@ -79,13 +82,24 @@ class Worker:
         pass
 
     def EventLoop(self):
+        print('event_loop 실행')
+        def now():
+            return datetime.datetime.now()
         while True:
             if not self.workerQ.empty():
-                data = self.workerQ.get()
+                data = self.workerQ.get()    # data = ['VAR','self.selected_code', self.seleted_code]
+                # print('workerQ_data 수신')
                 if data[0] == 'VAR':
-                    if data[1] == 'selected_code':
+                    if data[1] == 'self.selected_code':
                         self.selected_code  = data[2]    # self.selected_code
-                        print('sele_code', self.selected_code)
+                        # print('workerQ_sele_code', self.selected_code)
+
+            # time_loop = timedelta_sec(0.25)
+            time_loop = now() + datetime.timedelta(seconds=0.25)
+            # print(now(), time_loop)
+            while now() < time_loop:
+                pythoncom.PumpWaitingMessages()
+                time.sleep(0.0001)
 
     def hogaUpdate(self):
         pass
@@ -225,10 +239,9 @@ class Worker:
         # logging.info(f"OnReceiveRealData {code} {realtype} {realdata}")
         # print('real_data', realtype)
 
-        # 수신시간
         receiving_time = str(datetime.datetime.now().strftime("%H%M%S.%f"))
         # 여기서 real_data 수신로그를 windowQ로 보낸다
-        self.windowQ.put(['LOG',('수신시간', receiving_time)])
+        self.windowQ.put(['LOG',('수신시간', realtype , receiving_time)])
 
         if realdata == '':
             return
@@ -259,10 +272,11 @@ class Worker:
                 self.UpdateChaegyeolData(code, name, c, db, per, v, cv,cva, o, h, ll, vp, ch, prec, d)
 
         elif realtype == "주식호가잔량":
-
+            # print('여기까지는 된다')
             try:
                 # 호가시간
                 # hg_tm = self.GetCommRealData(code, 21)
+
                 # 직전대비
                 hg_db = [
                     int(float(self.GetCommRealData(code, 139))),
@@ -288,7 +302,6 @@ class Worker:
                     int(self.GetCommRealData(code, 100)),
                     int(float(self.GetCommRealData(code, 129)))
                 ]
-
                 # 호가수량
                 hg_sr = [
                     int(self.GetCommRealData(code, 121)),
@@ -316,8 +329,11 @@ class Worker:
                 ]
 
                 # 호가(금액)
+                sanghanga = self.GetSanghanga(code)
+                hahanga =  self.GetHahanga(code)
+
                 hg_ga = [
-                    self.GetSanghanga(code),
+                    sanghanga,
                     abs(int(self.GetCommRealData(code, 50))),
                     abs(int(self.GetCommRealData(code, 49))),
                     abs(int(self.GetCommRealData(code, 48))),
@@ -338,9 +354,11 @@ class Worker:
                     abs(int(self.GetCommRealData(code, 58))),
                     abs(int(self.GetCommRealData(code, 59))),
                     abs(int(self.GetCommRealData(code, 60))),
-                    self.GetHahanga(code)
+                    hahanga
                 ]
+
                 prec = self.GetMasterLastPrice(code)
+
                 per = [
                     round((hg_ga[0] / prec - 1) * 100, 2),
                     round((hg_ga[1] / prec - 1) * 100, 2),
@@ -368,9 +386,14 @@ class Worker:
             except Exception as e:
                 # logging.info(f"[{strtime()}] _handler_real 주식호가잔량 {e}")
                 logging.info(f"에러발생 : _handler_real 주식호가잔량 {e}")
+
             else:
+                # print('code',realtype)
+                # return
                 # self.UpdateHogaData(code, hg_tm, hg_db, hg_sr, hg_ga, per)
                 self.UpdateHogaData(code, hg_db, hg_sr, hg_ga, per)
+
+
         # elif realtype == '장시작시간':     # 일단 soulsnow의 code를 잠시 그대로 둔다.
         #     if self.dict_intg['장운영상태'] == 8:
         #         return
@@ -406,9 +429,11 @@ class Worker:
             self.windowQ.put(['HOGA', ('chaegyeol', v)])
         # self.SaveChaegyeolData()
 
+
         # 호가창의 체결내역, 관심종목창, 보유잔고창을 업데이트 해야한다.
         # 다음으로 매수, 매도, 조건분석을 위해 data를 datafragme, sqlite3 DB에 저장해야 한다.
 
+    '''
     def SaveChaegyeolData(self, code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d):
         file_name = "mh_" + datetime.datetime.now().strftime("%m%d") + ".db"
         con = sqlite3.connect(file_name)
@@ -428,14 +453,18 @@ class Worker:
             print('df_len02: ', df_len)
             # #self.real_hoga_df.to_sql('주식호가잔량' , con, if_exists='append', chunksize=df_len)
             self.real_hoga_df.to_sql('hoga' , con, if_exists='append', chunksize=2100)
-
+    '''
 
     def UpdateHogaData(self, code, hg_db, hg_sr, hg_ga, per):
         # 호가창, 관심종목창, 주식잔고창 update
 
         # todo 호가창에 보내는 데이터는 선택된 종몸의 것만 보내야 한다.
-        if code == self.selected_stock:
-            self.windowQ.put(['HOGA', ('real', hg_db, hg_sr, hg_ga, per)])
+        # print('지정코드', self.selected_code)
+
+        if code == self.selected_code:
+            # print('selected 읽혔다')
+
+            self.windowQ.put(['HOGA', ('hoga', hg_db, hg_sr, hg_ga, per)])
             # print('호가잔량데이터 수신처리')
             # self.hogaQ.put([code, hg_db, hg_sr, hg_ga, per])
 

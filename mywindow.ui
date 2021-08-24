@@ -258,7 +258,7 @@
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QTableWidget" name="table_hoga_selected">
+               <widget class="QTableWidget" name="table_hoga2">
                 <property name="alternatingRowColors">
                  <bool>true</bool>
                 </property>
@@ -678,7 +678,7 @@
      <x>0</x>
      <y>0</y>
      <width>1187</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>

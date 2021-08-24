@@ -53,29 +53,29 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         print('selected_code', self.seleted_code)
 
         # 작업을 위하여 worker process에 전달 todo
-        self.workerQ.put(['VAR','selected_code', self.seleted_code])
+        self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
 
     # @QtCore.pyqtSlot(list)
     def UpdateTextedit(self, msg):
         if msg[0] == '수신시간':
             now = datetime.datetime.now()
-            self.textEdit.append(f'{str(now)} 수신시간 {msg[1]}')
+            self.textEdit.append(f'{str(now)} : {msg[2]}')
 
         else:
             self.textEdit.append(msg[1])
 
     def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
         if data[0] == 'initial':
-            # print(type(data[1]))
+
             self.dict_code_name = data[1]  # dict, data = ('initial',self.dict_code_name )
             self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
-            print('self.dict_name_code', self.dict_name_code)
+            # print('self.dict_name_code', self.dict_name_code)
 
             # todo 추적관찰필요.
             self.seleted_code = list(self.dict_code_name.keys())[0]
             print('선택된주식코드', self.seleted_code)
 
-            print('UpGwansim:codelist', self.dict_code_name)
+            # print('UpGwansim:codelist', self.dict_code_name)
             rows = len(self.dict_code_name)
             self.table_gwansim.setRowCount(rows)
             # self.table_gwansim.setColumnWidth(0, 120)
@@ -96,6 +96,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                 self.table_gwansim.setItem(row, col, item)
 
     def UpdateJango(self, data):
+
         # print('Up_acc', data[1])
         if data[0] == '잔고없음':
             item = QtWidgets.QTableWidgetItem('보유잔고없음')
@@ -105,6 +106,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             cnt = len(jango)
             # print('cnt', cnt)
             # column단위로 item값을 정렬하는 명령어를 찾아서 사용해야 한다. name = 좌측 기타 숫자는 우측 정렬 필요.
+
             for index1 in range(cnt):
                 for index2 in range(7):
                     item = jango[index1][index2]
@@ -113,12 +115,14 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
     # 호가창 처음 설정
     def UpdateHoga(self, data):
+
         # 체결수량을 가져와서 같이 작업필요.
         # code를 사용하여 선택된 자료를 송출할 필요가 있다.
         # 그 보다도 선택된 종목에 대한 호가정보만 가져와야 한다.
-        code = self.seleted_stock   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
+        code = self.seleted_code   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
 
         if data[0] == 'hoga':    # data = ('real', hg_db리스트, hg_sr리스트, hg_ga리스트, per리스트)
+            # print('updatehoga', data[1])
 
             hoga_data = data[1:]
             cnt = len(hoga_data[0])   # 리스트의 크기(대표적으로 hg_db기준)
@@ -127,18 +131,28 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     item = str(hoga_data[index][index2])
                     item = QtWidgets.QTableWidgetItem(item)
                     row, col = index2, index + 2
-                    self.table_hoga.setItem(row, col, item)
+                    self.table_hoga2.setItem(row, col, item)
 
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
+            '''
+            item_copy = []
+            for row in range(22):
+                item_copy.append(self.table_hoga2.item(row, 1))
+            '''
 
-            for row in range(1,22): # 윚줄의 값을 아래칸에 입력 즉, 한칸씩 다운
-                item = self.table_hoga.item(row-1, 1)
-                self.table_hoga.setItem(row, 1, item)
-
-            # 맨 윚줄 값 입력
-            item = str(data[1])
+            item_1 = self.table_hoga2.item(0,1)
+            # print('item_1', item_1)
+            item = str(data[1])  # 첫줄에 새로운값 입력
             item = QtWidgets.QTableWidgetItem(item)
-            self.table_hoga.setItem(0, 1, item)
+            self.table_hoga2.setItem(0, 1, item)
+
+            self.table_hoga2.setItem(1, 1, item_1)
+
+            # print('item', item_copy)
+
+            # for row in range(1,22):   # 둘째줄부터 입력함.
+            #     self.table_hoga2.setItem(row, 1, item_copy[row-1])
+
 
     def UpdateChart(self, data):
         pass
@@ -147,7 +161,7 @@ if __name__ == '__main__':
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
     Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
-    Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
+    # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
 
     app = QtWidgets.QApplication(sys.argv)
     mywindow = MyWindow()
