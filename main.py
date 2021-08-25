@@ -1,7 +1,8 @@
 import datetime
 import sys
 import time
-from PyQt5 import QtWidgets, QtCore, QAxContainer, uic
+from PyQt5 import QtWidgets, QtGui, QAxContainer, uic
+from PyQt5.QtCore import Qt
 from multiprocessing import Process, Queue, Pool
 from worker import Worker
 from writer import Writer
@@ -126,35 +127,78 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
             hoga_data = data[1:]
             cnt = len(hoga_data[0])   # 리스트의 크기(대표적으로 hg_db기준)
+
+            # table cell의 설정.(처음 한번만 하면 된다)
+            for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
+                for index2 in range(cnt):
+                    row, col = index2, index + 2
+                    self.table_hoga2.setItem(row, col, QtWidgets.QTableWidgetItem())
+                    self.table_hoga2.item(row,col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+
+            for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
+                for index2 in range(cnt):
+                    item = hoga_data[index][index2]
+                    # item = QtWidgets.QTableWidgetItem(item)
+                    row, col = index2, index + 2
+                    item = format(item, ",")
+                    self.table_hoga2.item(row,col).setData(Qt.DisplayRole, item)
+
+            '''
             for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
                 for index2 in range(cnt):
                     item = str(hoga_data[index][index2])
                     item = QtWidgets.QTableWidgetItem(item)
                     row, col = index2, index + 2
                     self.table_hoga2.setItem(row, col, item)
+            '''
 
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
-            '''
-            item_copy = []
-            for row in range(22):
-                item_copy.append(self.table_hoga2.item(row, 1))
-            '''
 
-            self.table_hoga2.setItem(1, 1, self.table_hoga2.item(0,1))
+            volume = data[1]
+            volume_copy = None
 
-            # item_1 = self.table_hoga2.item(0,1)
+            if self.table_hoga2.item(0,1) == None:    # 0,1 cell이 None이라는 건 맨 처음이라는 뜻.
+                # cell item의 QtableWidgetItem() 및 Alignment를 설정한다.
+                for row in range(22):
+                    self.table_hoga2.setItem(row, 1, QtWidgets.QTableWidgetItem())
+                    self.table_hoga2.item(row, 1).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
 
-            # print('item_1', item_1)
-            item = str(data[1])  # 첫줄에 새로운값 입력
-            item = QtWidgets.QTableWidgetItem(item)
-            self.table_hoga2.setItem(0, 1, item)
+                # 0,1 값을 넣고 return
+                if volume < 0:
+                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.red))
+                elif volume > 0:
+                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.blue))
 
-            # self.table_hoga2.setItem(1, 1, item_1)
+                self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
+                return
+            else:
+                volume_copy = self.table_hoga2.item(0,1).text()
 
-            # print('item', item_copy)
+                if volume < 0:
+                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.red))
+                elif volume > 0:
+                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.blue))
 
-            # for row in range(1,22):   # 둘째줄부터 입력함.
-            #     self.table_hoga2.setItem(row, 1, item_copy[row-1])
+                self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
+
+            # print('item_copy', item_copy)
+            for row in range(1,22):
+                if self.table_hoga2.item(row,1).text() == "":   # cell의 설정을 해 둔 상태이므로 text()값만 점검하면 된다.
+                    self.table_hoga2.item(row,1).setData(Qt.DisplayRole, volume_copy)
+                    return
+
+                volume = self.table_hoga2.item(row,1).text()
+                print('type', type(volume))
+                # volume = self.table_hoga2.item(row,1).data(Qt.DisplayRole)
+
+                # if int(volume_copy) < 0:
+                if int(volume_copy) < 0:
+                    self.table_hoga2.item(row, 1).setForeground(QtGui.QBrush(Qt.red))
+                elif int(volume_copy) > 0:
+                    self.table_hoga2.item(row, 1).setForeground(QtGui.QBrush(Qt.blue))
+
+                self.table_hoga2.item(row, 1).setData(Qt.DisplayRole, volume_copy)
+                volume_copy = volume
 
 
     def UpdateChart(self, data):
