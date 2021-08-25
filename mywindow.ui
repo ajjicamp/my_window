@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1187</width>
-    <height>700</height>
+    <width>1297</width>
+    <height>780</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -131,62 +131,6 @@
               <property name="spacing">
                <number>0</number>
               </property>
-              <item row="0" column="0">
-               <widget class="QWidget" name="widget_2" native="true">
-                <widget class="QRadioButton" name="radioButton">
-                 <property name="geometry">
-                  <rect>
-                   <x>10</x>
-                   <y>10</y>
-                   <width>61</width>
-                   <height>19</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>50%</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_3">
-                 <property name="geometry">
-                  <rect>
-                   <x>80</x>
-                   <y>10</y>
-                   <width>71</width>
-                   <height>16</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>100%</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_2">
-                 <property name="geometry">
-                  <rect>
-                   <x>150</x>
-                   <y>10</y>
-                   <width>51</width>
-                   <height>16</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>1주</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_4">
-                 <property name="geometry">
-                  <rect>
-                   <x>210</x>
-                   <y>10</y>
-                   <width>91</width>
-                   <height>19</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>백만원</string>
-                 </property>
-                </widget>
-               </widget>
-              </item>
               <item row="1" column="0">
                <widget class="QTableWidget" name="table_hoga1">
                 <property name="verticalScrollBarPolicy">
@@ -255,6 +199,62 @@
                   <string>평가금액</string>
                  </property>
                 </column>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QWidget" name="widget_2" native="true">
+                <widget class="QRadioButton" name="radioButton">
+                 <property name="geometry">
+                  <rect>
+                   <x>10</x>
+                   <y>10</y>
+                   <width>61</width>
+                   <height>19</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>50%</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_3">
+                 <property name="geometry">
+                  <rect>
+                   <x>80</x>
+                   <y>10</y>
+                   <width>71</width>
+                   <height>16</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>100%</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_2">
+                 <property name="geometry">
+                  <rect>
+                   <x>150</x>
+                   <y>10</y>
+                   <width>51</width>
+                   <height>16</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>1주</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_4">
+                 <property name="geometry">
+                  <rect>
+                   <x>210</x>
+                   <y>10</y>
+                   <width>91</width>
+                   <height>19</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>백만원</string>
+                 </property>
+                </widget>
                </widget>
               </item>
               <item row="2" column="0">
@@ -407,7 +407,7 @@
        <item row="1" column="0">
         <widget class="QTabWidget" name="gwansim">
          <property name="currentIndex">
-          <number>0</number>
+          <number>2</number>
          </property>
          <widget class="QWidget" name="tab_gwansim">
           <attribute name="title">
@@ -418,6 +418,9 @@
             <widget class="QTableWidget" name="table_gwansim">
              <property name="cursor" stdset="0">
               <cursorShape>ArrowCursor</cursorShape>
+             </property>
+             <property name="editTriggers">
+              <set>QAbstractItemView::NoEditTriggers</set>
              </property>
              <property name="alternatingRowColors">
               <bool>true</bool>
@@ -518,6 +521,9 @@
           <layout class="QGridLayout" name="gridLayout_2">
            <item row="0" column="0">
             <widget class="QTableWidget" name="table_account">
+             <property name="editTriggers">
+              <set>QAbstractItemView::NoEditTriggers</set>
+             </property>
              <property name="alternatingRowColors">
               <bool>true</bool>
              </property>
@@ -575,7 +581,7 @@
              </column>
              <column>
               <property name="text">
-               <string>수익률</string>
+               <string>수익률(%)</string>
               </property>
              </column>
              <column>
@@ -598,7 +604,10 @@
           </attribute>
           <layout class="QGridLayout" name="gridLayout_11">
            <item row="0" column="0">
-            <widget class="QTableWidget" name="tableWidget">
+            <widget class="QTableWidget" name="table_acc_eva">
+             <property name="editTriggers">
+              <set>QAbstractItemView::NoEditTriggers</set>
+             </property>
              <property name="alternatingRowColors">
               <bool>true</bool>
              </property>
@@ -608,6 +617,9 @@
              <property name="columnCount">
               <number>6</number>
              </property>
+             <attribute name="horizontalHeaderDefaultSectionSize">
+              <number>95</number>
+             </attribute>
              <attribute name="verticalHeaderVisible">
               <bool>false</bool>
              </attribute>
@@ -638,27 +650,27 @@
              </column>
              <column>
               <property name="text">
-               <string>추정에수금</string>
+               <string>추정예탁자산</string>
               </property>
              </column>
              <column>
               <property name="text">
-               <string>수익률</string>
+               <string>수익률(%)</string>
               </property>
              </column>
              <column>
               <property name="text">
-               <string>평가손익</string>
+               <string>총평가손익</string>
               </property>
              </column>
              <column>
               <property name="text">
-               <string>매입금액</string>
+               <string>총매입금액</string>
               </property>
              </column>
              <column>
               <property name="text">
-               <string>평가금액</string>
+               <string>총평가금액</string>
               </property>
              </column>
             </widget>
@@ -677,8 +689,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1187</width>
-     <height>21</height>
+     <width>1297</width>
+     <height>26</height>
     </rect>
    </property>
   </widget>

@@ -25,7 +25,7 @@ class Writer(QtCore.QThread):
                     self.UpdateTextedit.emit(data[1])
                 elif data[0] == 'GSJM':   # 관심종목
                     self.UpdateGwansim.emit(data[1])
-                elif data[0] == 'ACC':   # 계좌잔고
+                elif data[0] == 'ACC':   # 계좌잔고/평가
                     self.UpdateJango.emit(data[1])
                 elif data[0] == 'HOGA':   # 호가
                     self.UpdateHoga.emit(data[1])
