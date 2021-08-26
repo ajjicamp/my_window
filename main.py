@@ -26,8 +26,16 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.table_hoga
         '''
         self.table_gwansim.setColumnWidth(0, 120)
+        self.table_gwansim.setColumnWidth(3, 60)
+        self.table_gwansim.setColumnWidth(6, 60)
         self.table_account.setColumnWidth(0, 120)
         self.table_acc_eva.setColumnWidth(1, 100)
+        for row in range(22):
+            self.table_hoga2.setItem(row, 0, QtWidgets.QTableWidgetItem())
+            self.table_hoga2.item(row, 0).setBackground(QtGui.QBrush(Qt.gray))
+            self.table_hoga2.setItem(row, 6, QtWidgets.QTableWidgetItem())
+            self.table_hoga2.item(row, 6).setBackground(QtGui.QBrush(Qt.gray))
+
 
         # 이벤트 설정
 
@@ -108,11 +116,11 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
             row = self.code_index[code]  # code_index dict에서 row값 검색 {code:row, code:row ...}
             for col in range(7):  # table_gwansim columns 수
                 self.table_gwansim.setItem(row, col, QtWidgets.QTableWidgetItem())
-                item = format(code_info, ',')
+                item = code_info[col]
+                if type(item) == int or type(item) == float:
+                    item = format(item, ',')
+                    self.table_gwansim.item(row, col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table_gwansim.item(row, col).setData(Qt.DisplayRole, item)
-                # self.table_gwansim.item(row, col).setText(item)
-                # todo 여기서 setText() 대신 굳이 setData()를 사용할 필요가 없다. sort할 일이 없으면
-                self.table_gwansim.item(row, col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
 
     def UpdateJango(self, data):
         # data
@@ -154,6 +162,12 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
     def UpdateHoga(self, data):
         # worker process에서 지정종목에 대한 호가/체결정보만 보내준다. 그냥 기업하면 됨
         # code = self.seleted_code   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
+        # for row in range(22):
+        #     self.table_hoga2.setItem(row, 0, QtWidgets.QTableWidgetItem())
+        #     self.table_hoga2.item(row, 0).setBackground(QtGui.QBrush(Qt.gray))
+        #     self.table_hoga2.setItem(row, 6, QtWidgets.QTableWidgetItem())
+        #     self.table_hoga2.item(row, 6).setBackground(QtGui.QBrush(Qt.gray))
+
         if data[0] == 'hoga':    # data = ('real', hg_db리스트, hg_sr리스트, hg_ga리스트, per리스트)
             # print('updatehoga', data[1])
 
@@ -174,21 +188,10 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     row, col = index2, index + 2
                     item = format(item, ",")
                     self.table_hoga2.item(row,col).setData(Qt.DisplayRole, item)
-                    # todo self.table_hoga2.item(row,col).setText(item)
-
-            '''
-            for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
-                for index2 in range(cnt):
-                    item = str(hoga_data[index][index2])
-                    item = QtWidgets.QTableWidgetItem(item)
-                    row, col = index2, index + 2
-                    self.table_hoga2.setItem(row, col, item)
-            '''
 
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
 
             volume = data[1]
-            volume_copy = None
 
             if self.table_hoga2.item(0,1) == None:    # 0,1 cell이 None이라는 건 맨 처음이라는 뜻.
                 # cell item의 QtableWidgetItem() 및 Alignment를 설정한다.
@@ -197,42 +200,28 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     self.table_hoga2.item(row, 1).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
 
                 # 0,1 값을 넣고 return
-                if volume < 0:
-                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.red))
-                elif volume > 0:
-                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.blue))
-
+                color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
+                self.table_hoga2.item(0, 1).setForeground(color)
                 self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
                 return
             else:
                 volume_copy = self.table_hoga2.item(0,1).text()
 
-                if volume < 0:
-                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.red))
-                elif volume > 0:
-                    self.table_hoga2.item(0, 1).setForeground(QtGui.QBrush(Qt.blue))
-
+                color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
+                self.table_hoga2.item(0, 1).setForeground(color)
                 self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
 
-            # print('item_copy', item_copy)
             for row in range(1,22):
                 if self.table_hoga2.item(row,1).text() == "":   # cell의 설정을 해 둔 상태이므로 text()값만 점검하면 된다.
                     self.table_hoga2.item(row,1).setData(Qt.DisplayRole, volume_copy)
                     return
 
                 volume = self.table_hoga2.item(row,1).text()
-                print('type', type(volume))
-                # volume = self.table_hoga2.item(row,1).data(Qt.DisplayRole)
 
-                # if int(volume_copy) < 0:
-                if int(volume_copy) < 0:
-                    self.table_hoga2.item(row, 1).setForeground(QtGui.QBrush(Qt.red))
-                elif int(volume_copy) > 0:
-                    self.table_hoga2.item(row, 1).setForeground(QtGui.QBrush(Qt.blue))
-
+                color = QtGui.QBrush(Qt.red) if int(volume_copy) > 0 else QtGui.QBrush(Qt.blue)
+                self.table_hoga2.item(row, 1).setForeground(color)
                 self.table_hoga2.item(row, 1).setData(Qt.DisplayRole, volume_copy)
                 volume_copy = volume
-
 
     def UpdateChart(self, data):
         pass
