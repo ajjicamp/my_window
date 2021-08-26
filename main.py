@@ -17,6 +17,8 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.setupUi(self)
         self.workerQ = workerQ
         self.seleted_code = None
+        self.dict_code_name = {}
+        self.dict_name_code = {}
 
         '''
         나중 여기에 widget종류를 적어놓는다. 
@@ -30,11 +32,32 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.table_gwansim.setColumnWidth(6, 60)
         self.table_account.setColumnWidth(0, 120)
         self.table_acc_eva.setColumnWidth(1, 100)
+
+        # hoga2 table의 0,6 column의 색상을 gray로 설정, 1번 column의 alignment 정의
         for row in range(22):
             self.table_hoga2.setItem(row, 0, QtWidgets.QTableWidgetItem())
-            self.table_hoga2.item(row, 0).setBackground(QtGui.QBrush(Qt.gray))
+            # self.table_hoga2.item(row, 0).setBackground(QtGui.QBrush(Qt.gray))
+            self.table_hoga2.item(row, 0).setBackground(QtGui.QColor(100, 100, 100, 50))
+
             self.table_hoga2.setItem(row, 6, QtWidgets.QTableWidgetItem())
-            self.table_hoga2.item(row, 6).setBackground(QtGui.QBrush(Qt.gray))
+            self.table_hoga2.item(row, 6).setBackground(QtGui.QColor(100, 100, 100, 50))
+
+            self.table_hoga2.setItem(row, 1, QtWidgets.QTableWidgetItem())
+            self.table_hoga2.item(row, 1).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+
+        # hoga2 table의 매도호가를 옅은 붉은색으로 매수호가를 옅은 푸른색으로 설정
+        for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
+            for index2 in range(11):
+                row, col = index2, index + 2
+                self.table_hoga2.setItem(row, col, QtWidgets.QTableWidgetItem())
+                self.table_hoga2.item(row,col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+                self.table_hoga2.item(row,col).setBackground(QtGui.QColor(0, 0, 100, (index2+1) * 7))
+
+            for index2 in range(11, 22):
+                row, col = index2, index + 2
+                self.table_hoga2.setItem(row, col, QtWidgets.QTableWidgetItem())
+                self.table_hoga2.item(row,col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+                self.table_hoga2.item(row,col).setBackground(QtGui.QColor(100, 0, 0, (22 - index2) * 7))
 
 
         # 이벤트 설정
@@ -60,7 +83,13 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         if data == None:
             return
         self.seleted_code = self.dict_name_code[data.text()]
+        # hoga table 체결수량 column 내용 삭제
+
+        for row in range(22):
+            self.table_hoga2.item(row, 1).setText("")
+
         print('selected_code', self.seleted_code)
+
 
         # 작업을 위하여 worker process에 전달 todo
         self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
@@ -70,7 +99,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         data = self.table_account.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
         if data == None:
             return
-
         # data item의 text()값;종목명을 읽어와서 dict_name_code에서 종목코드를 찾아 self.selected_code에 저장
         self.seleted_code = self.dict_name_code[data.text()]
         print('selected_code', self.seleted_code)
@@ -87,13 +115,11 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         else:
             self.textEdit.append(msg[1])
 
-    def UpdateGwansim(self, data): # 여기서 data는 관심종목 table에 add하기 위한 collection(듀플,리스트,dataframe 등)이다
+    def UpdateGwansim(self, data): # data = ('initial', self.dict_code_name, self.dict_name_code)
 
         if data[0] == 'initial':
             self.dict_code_name = data[1]  # dict, data = ('initial',self.dict_code_name )
-            # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
-            self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
-            # print('self.dict_name_code', self.dict_name_code)
+            self.dict_name_code = data[2]
 
             # 1차로 수동으로 지정하기 전에 관심종목중 첫째 항목을 지정종목으로 감시 시작,
             self.seleted_code = list(self.dict_code_name.keys())[0]
@@ -160,26 +186,12 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                 self.table_acc_eva.item(0, col).setText(item)
     # 호가창 처음 설정
     def UpdateHoga(self, data):
-        # worker process에서 지정종목에 대한 호가/체결정보만 보내준다. 그냥 기업하면 됨
-        # code = self.seleted_code   # 현재 선택된 종목 ; 호가창과 차트에 나타낼 종목, 주문도 할 종목
-        # for row in range(22):
-        #     self.table_hoga2.setItem(row, 0, QtWidgets.QTableWidgetItem())
-        #     self.table_hoga2.item(row, 0).setBackground(QtGui.QBrush(Qt.gray))
-        #     self.table_hoga2.setItem(row, 6, QtWidgets.QTableWidgetItem())
-        #     self.table_hoga2.item(row, 6).setBackground(QtGui.QBrush(Qt.gray))
 
         if data[0] == 'hoga':    # data = ('real', hg_db리스트, hg_sr리스트, hg_ga리스트, per리스트)
             # print('updatehoga', data[1])
 
             hoga_data = data[1:]
             cnt = len(hoga_data[0])   # 리스트의 크기(대표적으로 hg_db기준) ; 22줄이다.
-
-            # table cell의 설정.(처음 한번만 하면 된다)
-            for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
-                for index2 in range(cnt):
-                    row, col = index2, index + 2
-                    self.table_hoga2.setItem(row, col, QtWidgets.QTableWidgetItem())
-                    self.table_hoga2.item(row,col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
 
             for index in range(4):    # hg_db, hg_sr, hg_ga, per 순회
                 for index2 in range(cnt):
@@ -192,21 +204,18 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
 
             volume = data[1]
-
+            # todo 아래는 인식되지 않는다. 고쳐라 처음 클릭하면 cell을 다 지워야 한다.
             if self.table_hoga2.item(0,1) == None:    # 0,1 cell이 None이라는 건 맨 처음이라는 뜻.
-                # cell item의 QtableWidgetItem() 및 Alignment를 설정한다.
-                for row in range(22):
-                    self.table_hoga2.setItem(row, 1, QtWidgets.QTableWidgetItem())
-                    self.table_hoga2.item(row, 1).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+                print('체결창 처음$$')
 
-                # 0,1 값을 넣고 return
+                # cell(0,1) 값을 넣고 return
                 color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
                 self.table_hoga2.item(0, 1).setForeground(color)
                 self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
                 return
+
             else:
                 volume_copy = self.table_hoga2.item(0,1).text()
-
                 color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
                 self.table_hoga2.item(0, 1).setForeground(color)
                 self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)

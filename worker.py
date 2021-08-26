@@ -29,6 +29,7 @@ class Worker:
         self.condition_loaded = False
 
         self.dict_code_name = {} # 조건검색결과 종목코드리스트의 {종목코드:종목명, 종목코드: 종목명 ,,,,,}
+        self.dict_name_code = {}
 
         self.tr_items = None                # tr input/output items
         self.tr_data = None                 # tr output data
@@ -114,8 +115,13 @@ class Worker:
             name = self.GetMasterCodeName(code)
             self.dict_code_name[code] = name
 
+            # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
+            self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
+            # print('self.dict_name_code', self.dict_name_code)
+
+
         # print('codelistname', self.dict_code_name)
-        self.windowQ.put(['GSJM', ('initial', self.dict_code_name)])
+        self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
 
         # 관심종목 실시간 등록
         ret = self.SetRealReg("1001", codes[1], "20;41", "0")
@@ -139,8 +145,10 @@ class Worker:
 
         cnt = len(df)
         acc = []
+        real_list = []
         for row in range(cnt):
             if not df.loc[row]['종목명'] == '':    # 종목명이 있다
+                code = df.loc[row]['종목번호'][1:]
                 name = df.loc[row]['종목명']
                 quan =int(df.loc[row]['보유수량'])
                 buy_prc = int(df.loc[row]['매입가'])
@@ -150,9 +158,21 @@ class Worker:
                 EA = int(df.loc[row]['평가금액'])
                 data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
                 acc.append(data)    # [(data),(data),(data) ...]
-                self.windowQ.put(['ACC', ('계좌잔고', acc)])
+                real_list.append(code)
+                self.dict_code_name[code] = name
+                self.dict_name_code[name] = code
+
             else:
                 self.windowQ.put(['ACC', ('계좌잔고', '')])
+        # 실시간 등록 추가 todo 한줄코딩으로 바꾸자
+        real_reg_list = ''
+        for item in real_list:
+            real_reg_list += item + ';'
+
+        self.SetRealReg("1001",real_reg_list,"20;41", "1" )
+        self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
+        self.windowQ.put(['ACC', ('계좌잔고', acc)])
+
 
     def GetAccountEvaluation(self):
         df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='0000', 비밀번호입력매체구분='00',
@@ -415,6 +435,7 @@ class Worker:
 
         # self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
         self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
+
 
         if code == self.selected_code:
             self.windowQ.put(['HOGA', ('chaegyeol', v)])

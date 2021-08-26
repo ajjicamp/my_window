@@ -416,6 +416,11 @@
           <layout class="QGridLayout" name="gridLayout_3">
            <item row="0" column="0">
             <widget class="QTableWidget" name="table_gwansim">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="cursor" stdset="0">
               <cursorShape>ArrowCursor</cursorShape>
              </property>
