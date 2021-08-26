@@ -7,6 +7,11 @@ from multiprocessing import Process, Queue, Pool
 from worker import Worker
 from writer import Writer
 from hoga import HogaWindow
+import mmap
+import ctypes
+
+SIZE = 1024  # 메모리 크기 설정용
+tag_name = 'SHARE_DATA'  # 프로세스간 공유할 메모리의 이름
 
 # app =QtWidgets.QApplication(sys.argv)
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/mywindow.ui')[0]
