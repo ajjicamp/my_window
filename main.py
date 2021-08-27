@@ -3,7 +3,7 @@ import sys
 import time
 from PyQt5 import QtWidgets, QtGui, QAxContainer, uic
 from PyQt5.QtCore import Qt
-from multiprocessing import Process, Queue, Pool
+from multiprocessing import Process, Queue, Pool, Value, Array
 from worker import Worker
 from writer import Writer
 from hoga import HogaWindow
@@ -24,7 +24,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.seleted_code = None
         self.dict_code_name = {}
         self.dict_name_code = {}
-
+        self.S_CODE = S_CODE
         '''
         나중 여기에 widget종류를 적어놓는다. 
         가능하면 단축키를 이용하여 콤보박스에서 선택하는 방식으로 해본다.
@@ -33,8 +33,8 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.table_hoga
         '''
         self.table_gwansim.setColumnWidth(0, 120)
-        self.table_gwansim.setColumnWidth(3, 60)
-        self.table_gwansim.setColumnWidth(6, 60)
+        self.table_gwansim.setColumnWidth(3, 70)
+        self.table_gwansim.setColumnWidth(6, 70)
         self.table_account.setColumnWidth(0, 120)
         self.table_acc_eva.setColumnWidth(1, 100)
 
@@ -83,17 +83,26 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
     # 여기서 작업하고 나중에 옮긴다.
     def gwansim_cellClicked(self, row):
+        print('S_CODE VALUE', S_CODE.get_obj().value)
+
         # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
         data = self.table_gwansim.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
         if data == None:
             return
-        self.seleted_code = self.dict_name_code[data.text()]
+        # self.S_CODE.value = b'000660'
+        S_CODE.get_obj().value = self.dict_name_code[data.text()]
+        self.selected_code = self.dict_name_code[data.text()]
         # hoga table 체결수량 column 내용 삭제
 
         for row in range(22):
             self.table_hoga2.item(row, 1).setText("")
 
-        print('selected_code', self.seleted_code)
+        print('gwansim S_CODE', S_CODE.get_obj().value)
+        if  S_CODE.get_obj().value == '123456':
+            print('sucessful')
+        else:
+            print('faild')
+
 
 
         # 작업을 위하여 worker process에 전달 todo
@@ -242,10 +251,13 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
 if __name__ == '__main__':
 
+    S_CODE = Array('u', 10 )
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
-    Process(target=Worker, name='name_worker', args=(windowQ, workerQ, hogaQ,), daemon=True).start()
+    p = Process(target=Worker, name='name_worker', args=(S_CODE, windowQ, workerQ, hogaQ,), daemon=True)
+    p.start()
     # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
 
+    print('S_CODE_value',S_CODE.get_obj().value)
     app = QtWidgets.QApplication(sys.argv)
     mywindow = MyWindow()
     mywindow.show()

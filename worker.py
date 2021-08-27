@@ -8,7 +8,7 @@ import pandas as pd
 import time
 import zipfile
 import logging
-from multiprocessing import Process, Queue, current_process
+from multiprocessing import Value, Process, Queue, current_process
 # from hoga import Hoga
 
 app = QApplication(sys.argv)
@@ -16,10 +16,12 @@ app = QApplication(sys.argv)
 logging.basicConfig(level=logging.INFO)
 
 class Worker:
-    def __init__(self, windowQ, workerQ, hogaQ, login=False):
+    def __init__(self, S_CODE, windowQ, workerQ, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
         # print('name:$$', current_process().name)
+        self.S_CODE = S_CODE
+        print('workvalue', self.S_CODE.get_obj().value)
         self.windowQ = windowQ
         self.workerQ = workerQ
         self.hogaQ = hogaQ
@@ -62,7 +64,6 @@ class Worker:
         self.loadDatabase()
         self.CommConnect(block=True)
         self.list_kosd = self.GetCodeListByMarket('10')
-
         self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
         self.GetAccountjanGo()
@@ -86,6 +87,7 @@ class Worker:
                 if data[0] == 'VAR':
                     if data[1] == 'self.selected_code':
                         self.selected_code  = data[2]    # self.selected_code
+                        # print('workerQ_sele_code', self.selected_code)
                         # print('workerQ_sele_code', self.selected_code)
 
             time_loop = now() + datetime.timedelta(seconds=0.25)
