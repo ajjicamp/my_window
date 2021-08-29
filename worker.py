@@ -20,8 +20,8 @@ class Worker:
         if not QApplication.instance():
             app = QApplication(sys.argv)
         # print('name:$$', current_process().name)
-        self.S_CODE = S_CODE
-        print('workvalue', self.S_CODE.get_obj().value)
+        # self.S_CODE = S_CODE
+        # print('workvalue:', S_CODE.get_obj().value)
         self.windowQ = windowQ
         self.workerQ = workerQ
         self.hogaQ = hogaQ
@@ -430,7 +430,7 @@ class Worker:
             #     d = self.GetCommRealData(code, 20)
             # except Exception as e:
             #     self.windowQ.put([1, f'OnReceiveRealData 업종지수 {e}'])
-            # else:
+            # else:S
                 # self.UpdateUpjongjisu(code, d, c, v)
 
     def UpdateChaegyeolData(self, code, name, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d):
@@ -438,8 +438,8 @@ class Worker:
         # self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
         self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
 
-
         if code == self.selected_code:
+        # if code == S_CODE.get_obj().value:
             self.windowQ.put(['HOGA', ('chaegyeol', v)])
         # self.SaveChaegyeolData()
 

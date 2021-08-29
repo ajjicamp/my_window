@@ -7,11 +7,12 @@ from multiprocessing import Process, Queue, Pool, Value, Array
 from worker import Worker
 from writer import Writer
 from hoga import HogaWindow
+from Utility import *
 import mmap
 import ctypes
 
-SIZE = 1024  # 메모리 크기 설정용
-tag_name = 'SHARE_DATA'  # 프로세스간 공유할 메모리의 이름
+# SIZE = 1024  # 메모리 크기 설정용
+# tag_name = 'SHARE_DATA'  # 프로세스간 공유할 메모리의 이름
 
 # app =QtWidgets.QApplication(sys.argv)
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/mywindow.ui')[0]
@@ -83,8 +84,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
     # 여기서 작업하고 나중에 옮긴다.
     def gwansim_cellClicked(self, row):
-        print('S_CODE VALUE', S_CODE.get_obj().value)
-
         # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
         data = self.table_gwansim.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
         if data == None:
@@ -103,10 +102,14 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         else:
             print('faild')
 
-
-
         # 작업을 위하여 worker process에 전달 todo
         self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
+
+    def SCODE(self, *args):
+        if not args == None:
+            S_CODE.get_obj().value = args
+        else:
+            return S_CODE.get_obj().value
 
     def account_cellClicked(self, row):
         # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
