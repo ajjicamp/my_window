@@ -8,7 +8,7 @@ import pandas as pd
 import time
 import zipfile
 import logging
-from multiprocessing import Value, Process, Queue, current_process
+from multiprocessing import Value, Process, Queue, current_process, Manager
 # from hoga import Hoga
 
 app = QApplication(sys.argv)
@@ -16,12 +16,14 @@ app = QApplication(sys.argv)
 logging.basicConfig(level=logging.INFO)
 
 class Worker:
-    def __init__(self, S_CODE, windowQ, workerQ, hogaQ, login=False):
+    def __init__(self, N_, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
         # print('name:$$', current_process().name)
-        # self.S_CODE = S_CODE
-        # print('workvalue:', S_CODE.get_obj().value)
+        self.N_ = N_
+        self.D_GSJM_name = D_GSJM_name
+        self.D_GSJM_code = D_GSJM_code
+        print('N_, D_', self.N_, self.D_GSJM_code, self.D_GSJM_name)
         self.windowQ = windowQ
         self.workerQ = workerQ
         self.hogaQ = hogaQ
@@ -115,15 +117,22 @@ class Worker:
         # self.dict_code_name = {}
         for code in codes[0]:
             name = self.GetMasterCodeName(code)
-            self.dict_code_name[code] = name
+            # self.dict_code_name[code] = name
+            self.D_GSJM_name[code] = name
+
+
 
             # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
-            self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
+            # self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
+            self.D_GSJM_code = { v:k for k, v in self.D_GSJM_name.items() }
             # print('self.dict_name_code', self.dict_name_code)
+
+        print('worker129 관심종목코드dict', self.D_GSJM_code)
 
 
         # print('codelistname', self.dict_code_name)
-        self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
+        # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
+        self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
 
         # 관심종목 실시간 등록
         ret = self.SetRealReg("1001", codes[1], "20;41", "0")
@@ -161,8 +170,11 @@ class Worker:
                 data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
                 acc.append(data)    # [(data),(data),(data) ...]
                 real_list.append(code)
-                self.dict_code_name[code] = name
-                self.dict_name_code[name] = code
+
+                self.D_GSJM_name[code] = name
+                self.D_GSJM_code[name] = code
+                # self.dict_code_name[code] = name
+                # self.dict_name_code[name] = code
 
             else:
                 self.windowQ.put(['ACC', ('계좌잔고', '')])
@@ -172,7 +184,8 @@ class Worker:
             real_reg_list += item + ';'
 
         self.SetRealReg("1001",real_reg_list,"20;41", "1" )
-        self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
+        self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
+        # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
         self.windowQ.put(['ACC', ('계좌잔고', acc)])
 
 
@@ -266,7 +279,9 @@ class Worker:
             # print('실시간 주식체결')
             try:
                 # real에서 종목명을 조회하면 tr 조회가 너무 많아져서 lock
-                name = self.dict_code_name[code]  # 종목명
+
+                name = self.D_GSJM_name[code]  # 종목명
+                # name = self.dict_code_name[code]  # 종목명
                 c = abs(int(self.GetCommRealData(code, 10)))  # current 현재가
                 db = int(self.GetCommRealData(code, 11))  # 전일대비
                 per = float(self.GetCommRealData(code, 12))  # 등락율 percent
@@ -438,8 +453,8 @@ class Worker:
         # self.SaveChaegyeolData(code, c, db, per, v, cv, cva, o, h, ll, vp, ch, prec, d)
         self.windowQ.put(['GSJM', ('real', code, name, c, db, per, cv, cva, ch)])
 
-        if code == self.selected_code:
-        # if code == S_CODE.get_obj().value:
+        # if code == self.selected_code:
+        if code == self.N_.code:
             self.windowQ.put(['HOGA', ('chaegyeol', v)])
         # self.SaveChaegyeolData()
 
@@ -471,7 +486,8 @@ class Worker:
     def UpdateHogaData(self, code, hg_db, hg_sr, hg_ga, per):
         # 호가창, 관심종목창, 주식잔고창 update
         # todo 호가창에 보내는 데이터는 선택된 종몸의 것만 보내야 한다.
-        if code == self.selected_code:
+        # if code == self.selected_code:
+        if code == self.N_.code:
             self.windowQ.put(['HOGA', ('hoga', hg_db, hg_sr, hg_ga, per)])
 
     def GetSanghanga(self, code):

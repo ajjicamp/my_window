@@ -3,7 +3,7 @@ import sys
 import time
 from PyQt5 import QtWidgets, QtGui, QAxContainer, uic
 from PyQt5.QtCore import Qt
-from multiprocessing import Process, Queue, Pool, Value, Array
+from multiprocessing import Process, Queue, Pool, Value, Array, Manager
 from worker import Worker
 from writer import Writer
 from hoga import HogaWindow
@@ -25,7 +25,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.seleted_code = None
         self.dict_code_name = {}
         self.dict_name_code = {}
-        self.S_CODE = S_CODE
         '''
         나중 여기에 widget종류를 적어놓는다. 
         가능하면 단축키를 이용하여 콤보박스에서 선택하는 방식으로 해본다.
@@ -89,27 +88,24 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         if data == None:
             return
         # self.S_CODE.value = b'000660'
-        S_CODE.get_obj().value = self.dict_name_code[data.text()]
-        self.selected_code = self.dict_name_code[data.text()]
+        # N_.code = self.dict_name_code[data.text()]
+        print('관심종목코드dict', D_GSJM_code)
+        N_.code = D_GSJM_code[data.text()]
+
+        # self.selected_code = self.dict_name_code[data.text()]
         # hoga table 체결수량 column 내용 삭제
 
         for row in range(22):
             self.table_hoga2.item(row, 1).setText("")
 
-        print('gwansim S_CODE', S_CODE.get_obj().value)
-        if  S_CODE.get_obj().value == '123456':
-            print('sucessful')
-        else:
-            print('faild')
+        print('gwansim 지정종목', N_.code)
+        # if  NS.CODE == '123456':
+        #     print('sucessful')
+        # else:
+        #     print('faild')
 
         # 작업을 위하여 worker process에 전달 todo
         self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
-
-    def SCODE(self, *args):
-        if not args == None:
-            S_CODE.get_obj().value = args
-        else:
-            return S_CODE.get_obj().value
 
     def account_cellClicked(self, row):
         # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
@@ -117,11 +113,14 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         if data == None:
             return
         # data item의 text()값;종목명을 읽어와서 dict_name_code에서 종목코드를 찾아 self.selected_code에 저장
-        self.seleted_code = self.dict_name_code[data.text()]
+        # N_.code = self.dict_name_code[data.text()]
+        N_.code = D_GSJM_code[data.text()]
+        # self.seleted_code = self.dict_name_code[data.text()]
         print('selected_code', self.seleted_code)
 
         # 작업을 위하여 worker process에 전달 todo
-        self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
+        # todot self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
+
 
     # @QtCore.pyqtSlot(list)
     def UpdateTextedit(self, msg):
@@ -135,18 +134,22 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
     def UpdateGwansim(self, data): # data = ('initial', self.dict_code_name, self.dict_name_code)
 
         if data[0] == 'initial':
-            self.dict_code_name = data[1]  # dict, data = ('initial',self.dict_code_name )
-            self.dict_name_code = data[2]
+            # D_GSJM_name = data[1]  # dict, data = ('initial',self.dict_code_name )
+            # D_GSJM_code = data[2]
 
             # 1차로 수동으로 지정하기 전에 관심종목중 첫째 항목을 지정종목으로 감시 시작,
-            self.seleted_code = list(self.dict_code_name.keys())[0]
-            print('선택된주식코드', self.seleted_code)
+            N_.code  = list(D_GSJM_name.keys())[0]
+            # self.seleted_code = list(self.dict_code_name.keys())[0]
+            # print('선택된주식코드', self.seleted_code)
+            print('선택된주식코드', N_.code)
 
             # print('UpGwansim:codelist', self.dict_code_name)
-            rows = len(self.dict_code_name)
+            # rows = len(self.dict_code_name)
+            rows = len(D_GSJM_name)
             self.table_gwansim.setRowCount(rows)
             # 관심종목명만 우선 table에 기재(0번 칼럼)
-            for row, (code, name) in enumerate(self.dict_code_name.items()):
+            # for row, (code, name) in enumerate(self.dict_code_name.items()):
+            for row, (code, name) in enumerate(D_GSJM_name.items()):
                 item = QtWidgets.QTableWidgetItem(name)
                 self.table_gwansim.setItem(row, 0, item)
                 # 관심종목의 코드별로 해당 row값을 저장
@@ -221,7 +224,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
 
             volume = data[1]
-            # todo 아래는 인식되지 않는다. 고쳐라 처음 클릭하면 cell을 다 지워야 한다.
             if self.table_hoga2.item(0,1) == None:    # 0,1 cell이 None이라는 건 맨 처음이라는 뜻.
                 print('체결창 처음$$')
 
@@ -254,13 +256,22 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
 if __name__ == '__main__':
 
-    S_CODE = Array('u', 10 )
+    # S_CODE = Array('u', 10 )
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
-    p = Process(target=Worker, name='name_worker', args=(S_CODE, windowQ, workerQ, hogaQ,), daemon=True)
+    # with Manager() as manager:
+    N_ = Manager().Namespace()
+    D_GSJM_name = Manager().dict()
+    D_GSJM_code = Manager().dict()
+
+    # N_.code = '005930'
+    # print('N_', N_)
+
+    p = Process(target=Worker, name='name_worker', args=(N_, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ,), daemon=True)
     p.start()
+    p.join()
+    # p.join()
     # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
 
-    print('S_CODE_value',S_CODE.get_obj().value)
     app = QtWidgets.QApplication(sys.argv)
     mywindow = MyWindow()
     mywindow.show()
