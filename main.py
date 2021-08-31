@@ -11,9 +11,6 @@ from Utility import *
 import mmap
 import ctypes
 
-# SIZE = 1024  # 메모리 크기 설정용
-# tag_name = 'SHARE_DATA'  # 프로세스간 공유할 메모리의 이름
-
 # app =QtWidgets.QApplication(sys.argv)
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/mywindow.ui')[0]
 
@@ -82,45 +79,33 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.writer.start()
 
     # 여기서 작업하고 나중에 옮긴다.
-    def gwansim_cellClicked(self, row):
-        # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
-        data = self.table_gwansim.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
-        if data == None:
-            return
-        # self.S_CODE.value = b'000660'
-        # N_.code = self.dict_name_code[data.text()]
-        print('관심종목코드dict', D_GSJM_code)
-        N_.code = D_GSJM_code[data.text()]
+    def selected_code_work(self, data):
+        if data == None: return
+        N_.code = D_GSJM_code[data.text()]  # 클릭한 종목명으로 종목코드를 찾아서 변수에 저장
 
-        # self.selected_code = self.dict_name_code[data.text()]
-        # hoga table 체결수량 column 내용 삭제
-
+        # 감시종목이 변경되었으므로 호가창윈도우 초기화
         for row in range(22):
-            self.table_hoga2.item(row, 1).setText("")
+            for col in range(7):
+                self.table_hoga2.item(row, col).setText("")
 
-        print('gwansim 지정종목', N_.code)
-        # if  NS.CODE == '123456':
-        #     print('sucessful')
-        # else:
-        #     print('faild')
+        # hoga1 window 호가종목 name 입력
+        self.table_hoga1.setItem(0,0,QtWidgets.QTableWidgetItem())
+        self.table_hoga1.item(0,0).setText(data.text())
 
-        # 작업을 위하여 worker process에 전달 todo
-        self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
+        # todo 보유종목안에 있으면 현재가, 잔고 매입가 등을 불러와서 hoga1 window update
+        # account_jongmoklist = [self.table_account.item(i, 0) for i in range(7)]
+        # if data.text() in account_jongmoklist:
+        #     for i in range(len())
+
+        # print('gwansim 지정종목', N_.code, data.text())
+
+    def gwansim_cellClicked(self, row):  # 호가창에서 감시할 종목 선정
+        data = self.table_gwansim.item(row, 0)    # row; clicked row, col ; 0 (종목명, 현재가, 대비, ....)
+        self.selected_code_work(data)
 
     def account_cellClicked(self, row):
-        # 관심종목 window에서 click한 종목의 코드를 self.selected_code로 저장
         data = self.table_account.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
-        if data == None:
-            return
-        # data item의 text()값;종목명을 읽어와서 dict_name_code에서 종목코드를 찾아 self.selected_code에 저장
-        # N_.code = self.dict_name_code[data.text()]
-        N_.code = D_GSJM_code[data.text()]
-        # self.seleted_code = self.dict_name_code[data.text()]
-        print('selected_code', self.seleted_code)
-
-        # 작업을 위하여 worker process에 전달 todo
-        # todot self.workerQ.put(['VAR','self.selected_code', self.seleted_code])
-
+        self.selected_code_work(data)
 
     # @QtCore.pyqtSlot(list)
     def UpdateTextedit(self, msg):
@@ -131,25 +116,20 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         else:
             self.textEdit.append(msg[1])
 
-    def UpdateGwansim(self, data): # data = ('initial', self.dict_code_name, self.dict_name_code)
+    def UpdateGwansim(self, data): # data = ('initial', "", "")
 
         if data[0] == 'initial':
-            # D_GSJM_name = data[1]  # dict, data = ('initial',self.dict_code_name )
-            # D_GSJM_code = data[2]
-
-            # 1차로 수동으로 지정하기 전에 관심종목중 첫째 항목을 지정종목으로 감시 시작,
-            N_.code  = list(D_GSJM_name.keys())[0]
-            # self.seleted_code = list(self.dict_code_name.keys())[0]
-            # print('선택된주식코드', self.seleted_code)
+            # 1차로 수동으로 지정하기 전에 관심종목중 첫째 항목을 지정종목으로 감시 시작
+            # N_.code  = list(D_GSJM_name.keys())[0]
             print('선택된주식코드', N_.code)
 
-            # print('UpGwansim:codelist', self.dict_code_name)
-            # rows = len(self.dict_code_name)
             rows = len(D_GSJM_name)
             self.table_gwansim.setRowCount(rows)
+
             # 관심종목명만 우선 table에 기재(0번 칼럼)
             # for row, (code, name) in enumerate(self.dict_code_name.items()):
             for row, (code, name) in enumerate(D_GSJM_name.items()):
+                # todo 아래 코드도 일관되게 고쳐야 한다.
                 item = QtWidgets.QTableWidgetItem(name)
                 self.table_gwansim.setItem(row, 0, item)
                 # 관심종목의 코드별로 해당 row값을 저장
@@ -194,8 +174,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                         self.table_account.item(index1,index2).setText(item)
         elif data[0] == '계좌평가결과':
             acc_eva_info = data[1]   # (accno, E_Assets, Y_rate, eva_profit, eva_amount, buy_amount)
-            print('acc_eva_info', acc_eva_info)
-            item = None
+            # item = None
             for index in range(6):  # col == 6
                 col = index
                 self.table_acc_eva.setItem(0, col, QtWidgets.QTableWidgetItem())
@@ -204,7 +183,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     item = format(item, ',')
                     self.table_acc_eva.item(0, col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table_acc_eva.item(0, col).setText(item)
-    # 호가창 처음 설정
+
     def UpdateHoga(self, data):
 
         if data[0] == 'hoga':    # data = ('real', hg_db리스트, hg_sr리스트, hg_ga리스트, per리스트)
@@ -224,53 +203,41 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         elif data[0] == 'chaegyeol':    # data = ('chaegyeol', v)
 
             volume = data[1]
-            if self.table_hoga2.item(0,1) == None:    # 0,1 cell이 None이라는 건 맨 처음이라는 뜻.
-                print('체결창 처음$$')
-
-                # cell(0,1) 값을 넣고 return
-                color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
-                self.table_hoga2.item(0, 1).setForeground(color)
-                self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
-                return
-
-            else:
-                volume_copy = self.table_hoga2.item(0,1).text()
-                color = QtGui.QBrush(Qt.red) if volume > 0 else QtGui.QBrush(Qt.blue)
-                self.table_hoga2.item(0, 1).setForeground(color)
-                self.table_hoga2.item(0, 1).setData(Qt.DisplayRole, volume)
-
-            for row in range(1,22):
-                if self.table_hoga2.item(row,1).text() == "":   # cell의 설정을 해 둔 상태이므로 text()값만 점검하면 된다.
-                    self.table_hoga2.item(row,1).setData(Qt.DisplayRole, volume_copy)
-                    return
-
-                volume = self.table_hoga2.item(row,1).text()
-
-                color = QtGui.QBrush(Qt.red) if int(volume_copy) > 0 else QtGui.QBrush(Qt.blue)
+            def update(volume, row):
+                # print(type(volume), volume)
+                # if not volume == '':
+                color = QtGui.QBrush(Qt.red) if int(volume) > 0 else QtGui.QBrush(Qt.blue)
                 self.table_hoga2.item(row, 1).setForeground(color)
-                self.table_hoga2.item(row, 1).setData(Qt.DisplayRole, volume_copy)
-                volume_copy = volume
+                self.table_hoga2.item(row, 1).setData(Qt.DisplayRole, volume)
+
+            for row in range(22):
+                # if self.table_hoga2.item(row,1) == '':
+                # print('row값:' ,self.table_hoga2.item(row,1).text())
+                if self.table_hoga2.item(row,1).text() == "":
+                    print("값이 ''입니다.")
+                    update(volume, row)
+                    return
+                else:
+                    temp = self.table_hoga2.item(row,1).text()
+                    print(type(volume), volume)
+                    if volume == '':
+                        print('volume값은 없음입니다.')
+                    update(volume, row) # initial ; 위 첫줄 volume값 다음부터는 아랫줄 volome
+                    volume = temp
 
     def UpdateChart(self, data):
         pass
 
 if __name__ == '__main__':
 
-    # S_CODE = Array('u', 10 )
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
     # with Manager() as manager:
     N_ = Manager().Namespace()
     D_GSJM_name = Manager().dict()
     D_GSJM_code = Manager().dict()
 
-    # N_.code = '005930'
-    # print('N_', N_)
-
     p = Process(target=Worker, name='name_worker', args=(N_, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ,), daemon=True)
     p.start()
-    p.join()
-    # p.join()
-    # Process(target=HogaWindow, args=(windowQ, hogaQ,), daemon=True).start()
 
     app = QtWidgets.QApplication(sys.argv)
     mywindow = MyWindow()

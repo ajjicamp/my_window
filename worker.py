@@ -68,7 +68,7 @@ class Worker:
         self.list_kosd = self.GetCodeListByMarket('10')
         self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
-        self.GetAccountjanGo()
+        self.GetAccountJango()
         self.GetAccountEvaluation()
         self.EventLoop()
         app.exec_()
@@ -114,20 +114,21 @@ class Worker:
         '''
 
         # 관심종목의 namelistdict{code:name}를 만듬.
-        # self.dict_code_name = {}
         for code in codes[0]:
             name = self.GetMasterCodeName(code)
             # self.dict_code_name[code] = name
             self.D_GSJM_name[code] = name
+            self.D_GSJM_code[name] = code
 
-
-
-            # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
-            # self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
-            self.D_GSJM_code = { v:k for k, v in self.D_GSJM_name.items() }
-            # print('self.dict_name_code', self.dict_name_code)
+        # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
+        # self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
+        # self.D_GSJM_code.update({ v:k for k, v in self.D_GSJM_name.items()})
+        # print('self.dict_name_code', self.dict_name_code)
+        self.N_.code = self.D_GSJM_name.keys()[0]
 
         print('worker129 관심종목코드dict', self.D_GSJM_code)
+
+
 
 
         # print('codelistname', self.dict_code_name)
@@ -139,7 +140,7 @@ class Worker:
         if ret == 0:
             print("관심종목의 실시간 데이터수신을 시작합니다.")
 
-    def GetAccountjanGo(self):
+    def GetAccountJango(self):
         # self.accno = ['8000707411']
         print('계좌번호:', self.accno)
         dfs = []
@@ -489,6 +490,8 @@ class Worker:
         # if code == self.selected_code:
         if code == self.N_.code:
             self.windowQ.put(['HOGA', ('hoga', hg_db, hg_sr, hg_ga, per)])
+
+            # self.windowQ.put()
 
     def GetSanghanga(self, code):
         predayclose = self.GetMasterLastPrice(code)
