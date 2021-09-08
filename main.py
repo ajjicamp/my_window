@@ -61,7 +61,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                 self.table_hoga2.item(row,col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table_hoga2.item(row,col).setBackground(QtGui.QColor(100, 0, 0, (22 - index2) * 7))
 
-
         # 이벤트 설정
 
         self.table_gwansim.cellClicked.connect(self.gwansim_cellClicked)
