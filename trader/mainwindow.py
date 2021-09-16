@@ -62,7 +62,6 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                 self.table_hoga2.item(row,col).setBackground(QtGui.QColor(100, 0, 0, (22 - index2) * 7))
 
         # 이벤트 설정
-
         self.table_gwansim.cellClicked.connect(self.gwansim_cellClicked)
         self.table_account.cellClicked.connect(self.account_cellClicked)
 
@@ -77,12 +76,12 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.writer.UpdateChart.connect(self.UpdateChart)
         self.writer.start()
 
-    # 여기서 작업하고 나중에 옮긴다.
-    def selected_code_work(self, data):
+    # 종목클릭시  종목코드 탐색, 윈도우 초기화 및 종목명을 입력
+    def HogaWindow_update(self, data):  # 클릭한 종목의 이름이 넘어온다.
         if data == None: return
         N_.code = D_GSJM_code[data.text()]  # 클릭한 종목명으로 종목코드를 찾아서 변수에 저장
 
-        # 감시종목이 변경되었으므로 호가창윈도우 초기화
+        # 호가창 하단부 초기화
         for row in range(22):
             for col in range(7):
                 self.table_hoga2.item(row, col).setText("")
@@ -91,20 +90,13 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.table_hoga1.setItem(0,0,QtWidgets.QTableWidgetItem())
         self.table_hoga1.item(0,0).setText(data.text())
 
-        # todo 보유종목안에 있으면 현재가, 잔고 매입가 등을 불러와서 hoga1 window update
-        # account_jongmoklist = [self.table_account.item(i, 0) for i in range(7)]
-        # if data.text() in account_jongmoklist:
-        #     for i in range(len())
-
-        # print('gwansim 지정종목', N_.code, data.text())
-
     def gwansim_cellClicked(self, row):  # 호가창에서 감시할 종목 선정
         data = self.table_gwansim.item(row, 0)    # row; clicked row, col ; 0 (종목명, 현재가, 대비, ....)
-        self.selected_code_work(data)
+        self.HogaWindow_update(data)
 
     def account_cellClicked(self, row):
         data = self.table_account.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
-        self.selected_code_work(data)
+        self.HogaWindow_update(data)
 
     # @QtCore.pyqtSlot(list)
     def UpdateTextedit(self, msg):
@@ -231,9 +223,9 @@ if __name__ == '__main__':
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
     # with Manager() as manager:
-    N_ = Manager().Namespace()
-    D_GSJM_name = Manager().dict()
-    D_GSJM_code = Manager().dict()
+    N_ = Manager().Namespace()           # 공유변수 관심종목 code
+    D_GSJM_name = Manager().dict()       # 공유변수 관심종목 {code: name}
+    D_GSJM_code = Manager().dict()       # 공유변수 관심종목 {name: code}
 
     p = Process(target=Worker, name='name_worker', args=(N_, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ,), daemon=True)
     p.start()

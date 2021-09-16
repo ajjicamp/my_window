@@ -32,8 +32,8 @@ class Worker:
         self.tr_remained = False
         self.condition_loaded = False
 
-        self.dict_code_name = {} # 조건검색결과 종목코드리스트의 {종목코드:종목명, 종목코드: 종목명 ,,,,,}
-        self.dict_name_code = {}
+        # self.dict_code_name = {} # 조건검색결과 종목코드리스트의 {종목코드:종목명, 종목코드: 종목명 ,,,,,}
+        # self.dict_name_code = {}
 
         self.tr_items = None                # tr input/output items
         self.tr_data = None                 # tr output data
