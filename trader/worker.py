@@ -128,9 +128,6 @@ class Worker:
 
         print('worker129 관심종목코드dict', self.D_GSJM_code)
 
-
-
-
         # print('codelistname', self.dict_code_name)
         # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
         self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
@@ -188,7 +185,6 @@ class Worker:
         self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
         # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
         self.windowQ.put(['ACC', ('계좌잔고', acc)])
-
 
     def GetAccountEvaluation(self):
         df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='0000', 비밀번호입력매체구분='00',

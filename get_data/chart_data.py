@@ -31,57 +31,55 @@ class ChartData:
         self.CommConnect()
 
         # 일봉, 분봉, 틱 차트 데이터 수신
-        self.get_chart_data('분봉')
-
-    def get_chart_data(self,gubun):
+        kospi = self.GetCodeListByMarket('0')
         kosdaq = self.GetCodeListByMarket('10')
-        codes = kosdaq
+        self.get_chart_data(kospi, 'a')
+        self.get_chart_data(kosdaq, 'b')
+
+    def get_chart_data(self, codes, gubun):
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
+        print('codes', codes)
 
         # 전 종목의 일봉 데이터
-        if gubun == '분봉':
-            tr_code = 'opt10080'
-            rq_name = "주식분봉차트조회"
-            db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
-            dfs = pd.DataFrame()
-            for i, code in enumerate(codes):
-                count = 0
-                print(f"진행상황: {i}/{len(codes)} 코드번호;{code} " )
+        tr_code = 'opt10080'
+        rq_name = "주식분봉차트조회"
+        db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
+        dfs = pd.DataFrame()
+        for i, code in enumerate(codes):
+            count = 0
+            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
+            # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
+            df = self.block_request(tr_code,
+                                       종목코드=code,
+                                       # 기준일자=today,
+                                       틱범위=1,
+                                       수정주가구분=1,
+                                       output=rq_name,
+                                       next=0)
+            dfs = df
+            while self.tr_remained == True:
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/20')
+                time.sleep(0.2)
+                count += 1
                 df = self.block_request(tr_code,
                                            종목코드=code,
                                            # 기준일자=today,
                                            틱범위=1,
                                            수정주가구분=1,
                                            output=rq_name,
-                                           next=0)
-                dfs=df
+                                           next=2)
+                dfs = dfs.append(df, ignore_index=True)
+                if count == 20:
+                    break
+                # print('dfs:', dfs)
 
-                while self.tr_remained == True:
-                    # print('remained true')
-                    time.sleep(0.2)
-                    count += 1
-                    df = self.block_request(tr_code,
-                                               종목코드=code,
-                                               # 기준일자=today,
-                                               틱범위=1,
-                                               수정주가구분=1,
-                                               output=rq_name,
-                                               next=2)
-                    if count == 20: break
-                    print('df:', df)
-                    dfs.append(df)
-                    print('dfs:', dfs)
-                print(dfs)
-                con = sqlite3.connect(db_name)
-                out_name = f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-                dfs.to_sql(out_name, con, if_exists='append')
-                # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
-
-                # out_name = f"{code}.xlsx"
-                # df.to_excel(out_name)
-                time.sleep(3.6)
+            con = sqlite3.connect(db_name)
+            out_name = f"a{code}" if gubun == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            dfs.to_sql(out_name, con, if_exists='append')
+            # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
+            time.sleep(3.6)
 
     #------------------------
     # Kiwoom _handler [SLOT]
