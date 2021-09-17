@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1297</width>
-    <height>780</height>
+    <width>1211</width>
+    <height>729</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -171,6 +171,11 @@
                 </column>
                 <column>
                  <property name="text">
+                  <string>보유수량</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
                   <string>매입가</string>
                  </property>
                 </column>
@@ -187,11 +192,6 @@
                 <column>
                  <property name="text">
                   <string>평가손익</string>
-                 </property>
-                </column>
-                <column>
-                 <property name="text">
-                  <string>매입금액</string>
                  </property>
                 </column>
                 <column>
@@ -407,7 +407,7 @@
        <item row="1" column="0">
         <widget class="QTabWidget" name="gwansim">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="tab_gwansim">
           <attribute name="title">
@@ -694,7 +694,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1297</width>
+     <width>1211</width>
      <height>21</height>
     </rect>
    </property>

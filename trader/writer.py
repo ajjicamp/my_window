@@ -1,16 +1,18 @@
 # windowQ를 get()하여 pyqtsignal을 통해 Window.py로 보낸다. Window.py의 signal슬롯에서 작업수행
 # QThread이다. pyqtsignal을 처리하기 위하여 QThread를 이용하였다.
+
 import sys
 import time
 import pandas as pd
 from PyQt5 import QtCore
 import datetime
+
 class Writer(QtCore.QThread):
-    UpdateTextedit= QtCore.pyqtSignal(tuple)  # 실시간 수신로그 및
-    UpdateGwansim = QtCore.pyqtSignal(tuple)
-    UpdateJango = QtCore.pyqtSignal(tuple)
-    UpdateHoga    = QtCore.pyqtSignal(tuple)
-    UpdateChart   = QtCore.pyqtSignal(tuple)
+    UpdateTextedit= QtCore.pyqtSignal(tuple)    # 실시간 수신로그
+    UpdateGwansim = QtCore.pyqtSignal(tuple)    # 관심종목 real update
+    UpdateJango = QtCore.pyqtSignal(tuple)      # 계좌잔고창 tr update
+    UpdateHoga    = QtCore.pyqtSignal(tuple)    # 호가창 real update
+    UpdateChart   = QtCore.pyqtSignal(tuple)    # 차트 real update
 
     def __init__(self, windowQ):
         super().__init__()

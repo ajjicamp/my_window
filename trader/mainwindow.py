@@ -64,6 +64,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         # 이벤트 설정
         self.table_gwansim.cellClicked.connect(self.gwansim_cellClicked)
         self.table_account.cellClicked.connect(self.account_cellClicked)
+        # self.table_account
 
         self.code_index = {}  # 나중 update할때 종목코드가 위치한 row값을 찾기위해서 변수저장
 
@@ -76,10 +77,10 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
         self.writer.UpdateChart.connect(self.UpdateChart)
         self.writer.start()
 
-    # 종목클릭시  종목코드 탐색, 윈도우 초기화 및 종목명을 입력
-    def HogaWindow_update(self, data):  # 클릭한 종목의 이름이 넘어온다.
-        if data == None: return
-        N_.code = D_GSJM_code[data.text()]  # 클릭한 종목명으로 종목코드를 찾아서 변수에 저장
+    # 종목클릭시  종목코드 탐색, 윈도우 초기화 및 호가창(1)에 종목명을 입력
+    def jongmok_clicked_exec(self, jongmok_name):  # 클릭한 종목의 이름이 넘어온다.
+        if jongmok_name == None: return
+        N_.code = D_GSJM_code[jongmok_name.text()]  # 클릭한 종목명으로 종목코드를 찾아서 변수에 저장
 
         # 호가창 하단부 초기화
         for row in range(22):
@@ -88,15 +89,29 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
         # hoga1 window 호가종목 name 입력
         self.table_hoga1.setItem(0,0,QtWidgets.QTableWidgetItem())
-        self.table_hoga1.item(0,0).setText(data.text())
+        self.table_hoga1.item(0,0).setText(jongmok_name.text())
+
+        # if jongmok_name == N_.code:
+
+        # for index2 in range(7):
+        #     self.table_account.setItem(index2, QtWidgets.QTableWidgetItem())
+        #     item = jango[0][index2]
+            print('type', type(item))
+            #
+            # if type(item) == int or type(item) == float:
+            #     item = format(item, ',')
+            #     self.table_account.item(index1, index2).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+            #
+            self.table_account.item(index1,index2).setData(Qt.DisplayRole, item)
+            # self.table_account.item(index1, index2).setText(item)
 
     def gwansim_cellClicked(self, row):  # 호가창에서 감시할 종목 선정
-        data = self.table_gwansim.item(row, 0)    # row; clicked row, col ; 0 (종목명, 현재가, 대비, ....)
-        self.HogaWindow_update(data)
+        jongmok_name = self.table_gwansim.item(row, 0)    # row; clicked row, col ; 0 (종목명, 현재가, 대비, ....)
+        self.jongmok_clicked_exec(jongmok_name)
 
     def account_cellClicked(self, row):
-        data = self.table_account.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
-        self.HogaWindow_update(data)
+        jongmok_name = self.table_account.item(row, 0)    # 종목명을 찾아야 하므로 column num 0이다
+        self.jongmok_clicked_exec(jongmok_name)
 
     # @QtCore.pyqtSlot(list)
     def UpdateTextedit(self, msg):
@@ -106,7 +121,8 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
         else:
             self.textEdit.append(msg[1])
-
+    
+    # 관심종목창 업데이트
     def UpdateGwansim(self, data): # data = ('initial', "", "")
 
         if data[0] == 'initial':
@@ -139,11 +155,11 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     self.table_gwansim.item(row, col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table_gwansim.item(row, col).setData(Qt.DisplayRole, item)
 
+    # 계좌잔고창, 계좌평가창 업데이트
     def UpdateJango(self, data):
-        # data
 
         # print('Up_acc', data[1])
-        if data[0] == '계좌잔고':
+        if data[0] == '계좌잔고':    
             if data[1] == '':
                 item = QtWidgets.QTableWidgetItem('보유잔고없음')
                 self.table_account.setItem(0, 0, item)
@@ -163,6 +179,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
 
                         # self.table_account.item(index1,index2).setData(Qt.DisplayRole, item)
                         self.table_account.item(index1,index2).setText(item)
+
         elif data[0] == '계좌평가결과':
             acc_eva_info = data[1]   # (accno, E_Assets, Y_rate, eva_profit, eva_amount, buy_amount)
             # item = None
@@ -175,6 +192,7 @@ class MyWindow(QtWidgets.QMainWindow, form_class):
                     self.table_acc_eva.item(0, col).setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table_acc_eva.item(0, col).setText(item)
 
+    # 호가창 업데이트: 실시간 호가데이터, 체결데이터를 받아서 update
     def UpdateHoga(self, data):
 
         if data[0] == 'hoga':    # data = ('real', hg_db리스트, hg_sr리스트, hg_ga리스트, per리스트)
@@ -223,7 +241,7 @@ if __name__ == '__main__':
 
     windowQ, workerQ, hogaQ = Queue(), Queue(), Queue()
     # with Manager() as manager:
-    N_ = Manager().Namespace()           # 공유변수 관심종목 code
+    N_ = Manager().Namespace()           # 공유변수 관심종목 code = N_.code
     D_GSJM_name = Manager().dict()       # 공유변수 관심종목 {code: name}
     D_GSJM_code = Manager().dict()       # 공유변수 관심종목 {name: code}
 

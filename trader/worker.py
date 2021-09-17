@@ -137,6 +137,7 @@ class Worker:
         if ret == 0:
             print("관심종목의 실시간 데이터수신을 시작합니다.")
 
+    # tr방식으로 잔고업데이트
     def GetAccountJango(self):
         # self.accno = ['8000707411']
         print('계좌번호:', self.accno)
@@ -153,10 +154,12 @@ class Worker:
         # print('00018\n', dfs)
 
         cnt = len(df)
-        acc = []
-        real_list = []
+        acc_jango = []    #
+        real_code_list = []    # 계좌보유종목리스트를 생성 ---> 실시간 감시종목으로 추가하기 위해서
         for row in range(cnt):
             if not df.loc[row]['종목명'] == '':    # 종목명이 있다
+                real_code_list.append(code)
+
                 code = df.loc[row]['종목번호'][1:]
                 name = df.loc[row]['종목명']
                 quan =int(df.loc[row]['보유수량'])
@@ -166,25 +169,26 @@ class Worker:
                 EG = int(df.loc[row]['평가손익'])
                 EA = int(df.loc[row]['평가금액'])
                 data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
-                acc.append(data)    # [(data),(data),(data) ...]
-                real_list.append(code)
+                acc_jango.append(data)    # [(data),(data),(data) ...]
 
+                # 관심종목 리스트에 추가,
                 self.D_GSJM_name[code] = name
                 self.D_GSJM_code[name] = code
-                # self.dict_code_name[code] = name
-                # self.dict_name_code[name] = code
 
-            else:
+            else:   # 계좌잔고가 하나도 없으면 ...
                 self.windowQ.put(['ACC', ('계좌잔고', '')])
-        # 실시간 등록 추가 todo 한줄코딩으로 바꾸자
-        real_reg_list = ''
-        for item in real_list:
-            real_reg_list += item + ';'
 
+        # 잔고종목을 실시간 감시하기 위하여 리스트를 tr용 (;) 문자열 형식으로 변환하고 setrealreg
+        real_reg_list = ''  # SetRealReg 용 문자열
+        for item in real_code_list:
+            real_reg_list += item + ';'
         self.SetRealReg("1001",real_reg_list,"20;41", "1" )
+
+        #
         self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
-        # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
-        self.windowQ.put(['ACC', ('계좌잔고', acc)])
+
+        # 계좌잔고창 update 지시
+        self.windowQ.put(['ACC', ('계좌잔고', acc_jango)])
 
     def GetAccountEvaluation(self):
         df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='0000', 비밀번호입력매체구분='00',
