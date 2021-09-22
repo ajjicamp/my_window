@@ -81,7 +81,7 @@
     </item>
     <item row="0" column="1" rowspan="2">
      <widget class="QWidget" name="hoga_order" native="true">
-      <layout class="QGridLayout" name="gridLayout_8">
+      <layout class="QGridLayout" name="gridLayout_8" rowstretch="0,0">
        <property name="leftMargin">
         <number>0</number>
        </property>
@@ -115,7 +115,7 @@
              <property name="frameShadow">
               <enum>QFrame::Raised</enum>
              </property>
-             <layout class="QGridLayout" name="gridLayout_14" rowstretch="80,50,800">
+             <layout class="QGridLayout" name="gridLayout_14" rowstretch="80,80,800">
               <property name="leftMargin">
                <number>0</number>
               </property>
@@ -147,6 +147,9 @@
                 </property>
                 <property name="autoScrollMargin">
                  <number>16</number>
+                </property>
+                <property name="wordWrap">
+                 <bool>false</bool>
                 </property>
                 <property name="rowCount">
                  <number>1</number>
@@ -201,66 +204,13 @@
                 </column>
                </widget>
               </item>
-              <item row="0" column="0">
-               <widget class="QWidget" name="widget_2" native="true">
-                <widget class="QRadioButton" name="radioButton">
-                 <property name="geometry">
-                  <rect>
-                   <x>10</x>
-                   <y>10</y>
-                   <width>61</width>
-                   <height>19</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>50%</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_3">
-                 <property name="geometry">
-                  <rect>
-                   <x>80</x>
-                   <y>10</y>
-                   <width>71</width>
-                   <height>16</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>100%</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_2">
-                 <property name="geometry">
-                  <rect>
-                   <x>150</x>
-                   <y>10</y>
-                   <width>51</width>
-                   <height>16</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>1주</string>
-                 </property>
-                </widget>
-                <widget class="QRadioButton" name="radioButton_4">
-                 <property name="geometry">
-                  <rect>
-                   <x>210</x>
-                   <y>10</y>
-                   <width>91</width>
-                   <height>19</height>
-                  </rect>
-                 </property>
-                 <property name="text">
-                  <string>백만원</string>
-                 </property>
-                </widget>
-               </widget>
-              </item>
               <item row="2" column="0">
                <widget class="QTableWidget" name="table_hoga2">
                 <property name="alternatingRowColors">
                  <bool>true</bool>
+                </property>
+                <property name="wordWrap">
+                 <bool>false</bool>
                 </property>
                 <property name="rowCount">
                  <number>22</number>
@@ -345,6 +295,62 @@
                 </column>
                </widget>
               </item>
+              <item row="0" column="0">
+               <widget class="QWidget" name="widget_2" native="true">
+                <widget class="QRadioButton" name="radioButton">
+                 <property name="geometry">
+                  <rect>
+                   <x>10</x>
+                   <y>10</y>
+                   <width>61</width>
+                   <height>19</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>50%</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_3">
+                 <property name="geometry">
+                  <rect>
+                   <x>80</x>
+                   <y>10</y>
+                   <width>71</width>
+                   <height>16</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>100%</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_2">
+                 <property name="geometry">
+                  <rect>
+                   <x>150</x>
+                   <y>10</y>
+                   <width>51</width>
+                   <height>16</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>1주</string>
+                 </property>
+                </widget>
+                <widget class="QRadioButton" name="radioButton_4">
+                 <property name="geometry">
+                  <rect>
+                   <x>210</x>
+                   <y>10</y>
+                   <width>91</width>
+                   <height>19</height>
+                  </rect>
+                 </property>
+                 <property name="text">
+                  <string>백만원</string>
+                 </property>
+                </widget>
+               </widget>
+              </item>
              </layout>
             </widget>
            </item>
@@ -405,7 +411,7 @@
         </widget>
        </item>
        <item row="1" column="0">
-        <widget class="QTabWidget" name="gwansim">
+        <widget class="QTabWidget" name="gwansimNaccount">
          <property name="currentIndex">
           <number>0</number>
          </property>
@@ -695,7 +701,7 @@
      <x>0</x>
      <y>0</y>
      <width>1211</width>
-     <height>21</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>

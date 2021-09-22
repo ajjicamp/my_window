@@ -16,11 +16,12 @@ app = QApplication(sys.argv)
 logging.basicConfig(level=logging.INFO)
 
 class Worker:
-    def __init__(self, N_, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ, login=False):
+    def __init__(self, N_, L_ACC_jango, D_GSJM_name, D_GSJM_code, windowQ, workerQ, hogaQ, login=False):
         if not QApplication.instance():
             app = QApplication(sys.argv)
         # print('name:$$', current_process().name)
         self.N_ = N_
+        self.L_ACC_jango = L_ACC_jango
         self.D_GSJM_name = D_GSJM_name
         self.D_GSJM_code = D_GSJM_code
         print('N_, D_', self.N_, self.D_GSJM_code, self.D_GSJM_name)
@@ -47,7 +48,7 @@ class Worker:
         # self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
 
         ###############
-        self.selected_code = None
+        # self.selected_code = None
         self.list_kosd = None
         self.code_list = None
 
@@ -68,8 +69,8 @@ class Worker:
         self.list_kosd = self.GetCodeListByMarket('10')
         self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
-        self.GetAccountJango()
-        self.GetAccountEvaluation()
+        self.GetAccountJango()   # 보유종목이 바뀔때마다 실행되도록 해야 함.
+        # self.GetAccountEvaluation()
         self.EventLoop()
         app.exec_()
 
@@ -82,15 +83,15 @@ class Worker:
     def EventLoop(self):
         def now():
             return datetime.datetime.now()
+
         while True:
             if not self.workerQ.empty():
-                data = self.workerQ.get()    # data = ['VAR','self.selected_code', self.seleted_code]
-                # print('workerQ_data 수신')
-                if data[0] == 'VAR':
-                    if data[1] == 'self.selected_code':
-                        self.selected_code  = data[2]    # self.selected_code
-                        # print('workerQ_sele_code', self.selected_code)
-                        # print('workerQ_sele_code', self.selected_code)
+                data = self.workerQ.get()
+                print('workerQ_data 수신')
+                if data == 'GetAccountJango':
+                    self.GetAccountJango()
+                elif data == 'GetAccountEvaluation':
+                    self.GetAccountEvaluation()
 
             time_loop = now() + datetime.timedelta(seconds=0.25)
             # print(now(), time_loop)
@@ -120,16 +121,10 @@ class Worker:
             self.D_GSJM_name[code] = name
             self.D_GSJM_code[name] = code
 
-        # name, code를 바꾸어서 name을 key로 code를 검색할 수 있도록 함.
-        # self.dict_name_code = { v:k for k, v in self.dict_code_name.items() }
-        # self.D_GSJM_code.update({ v:k for k, v in self.D_GSJM_name.items()})
-        # print('self.dict_name_code', self.dict_name_code)
         self.N_.code = self.D_GSJM_name.keys()[0]
 
-        print('worker129 관심종목코드dict', self.D_GSJM_code)
+        # print('worker129 관심종목코드dict', self.D_GSJM_code)
 
-        # print('codelistname', self.dict_code_name)
-        # self.windowQ.put(['GSJM', ('initial', self.dict_code_name, self.dict_name_code)])
         self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
 
         # 관심종목 실시간 등록
@@ -154,11 +149,11 @@ class Worker:
         # print('00018\n', dfs)
 
         cnt = len(df)
-        acc_jango = []    #
+        # acc_jango = []    #
+        self.L_ACC_jango[:] = []
         real_code_list = []    # 계좌보유종목리스트를 생성 ---> 실시간 감시종목으로 추가하기 위해서
         for row in range(cnt):
             if not df.loc[row]['종목명'] == '':    # 종목명이 있다
-                real_code_list.append(code)
 
                 code = df.loc[row]['종목번호'][1:]
                 name = df.loc[row]['종목명']
@@ -168,15 +163,23 @@ class Worker:
                 Y_rate = float(df.loc[row]['수익률(%)'])
                 EG = int(df.loc[row]['평가손익'])
                 EA = int(df.loc[row]['평가금액'])
-                data = (name, quan, buy_prc, cur, Y_rate, EG, EA)
-                acc_jango.append(data)    # [(data),(data),(data) ...]
+                data = (code, name, quan, buy_prc, cur, Y_rate, EG, EA)
+
+                # acc_jango.append(data)    # [(data),(data),(data) ...]
+
+                # 공유메모리 리스트에 보유종목코드 리스트를 저장
+                self.L_ACC_jango.append(data)
+
+                real_code_list.append(code)
 
                 # 관심종목 리스트에 추가,
                 self.D_GSJM_name[code] = name
                 self.D_GSJM_code[name] = code
 
             else:   # 계좌잔고가 하나도 없으면 ...
-                self.windowQ.put(['ACC', ('계좌잔고', '')])
+                self.windowQ.put(['AccJango', ''])
+
+        # print('l acc jango', self.L_ACC_jango)
 
         # 잔고종목을 실시간 감시하기 위하여 리스트를 tr용 (;) 문자열 형식으로 변환하고 setrealreg
         real_reg_list = ''  # SetRealReg 용 문자열
@@ -184,11 +187,12 @@ class Worker:
             real_reg_list += item + ';'
         self.SetRealReg("1001",real_reg_list,"20;41", "1" )
 
-        #
-        self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
+        # todo ????
+        # self.windowQ.put(['GSJM', ('initial', self.D_GSJM_name, self.D_GSJM_code)])
 
         # 계좌잔고창 update 지시
-        self.windowQ.put(['ACC', ('계좌잔고', acc_jango)])
+        # print('accjango', acc_jango)
+        self.windowQ.put(['AccJango'])
 
     def GetAccountEvaluation(self):
         df = self.block_request('opw00018', 계좌번호=self.accno[0], 비밀번호='0000', 비밀번호입력매체구분='00',
@@ -202,7 +206,7 @@ class Worker:
         buy_amount = int(df.loc[0]['총매입금액'])
         acc_eva_info = (accno, E_Assets, Y_rate, eva_profit, eva_amount, buy_amount)
 
-        self.windowQ.put(['ACC', ('계좌평가결과', acc_eva_info)])
+        self.windowQ.put(['AccEvaluation', acc_eva_info])
 
     #######################
     # Kiwoom _handler [SLOT]
