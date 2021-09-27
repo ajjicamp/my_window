@@ -29,7 +29,7 @@ class Window(QtWidgets.QMainWindow):
     def OnEventConnect(self, err_code):
         if err_code == 0:
             self.bool_connected = True
-        print('err_code--->', err_code)
+        print('err_code', err_code)
 
         self.AutoLoginOn()
 
@@ -43,22 +43,15 @@ class Window(QtWidgets.QMainWindow):
 
 
 if __name__ == '__main__':
-    for x, par in enumerate(sys.argv):
-        print('param', x, par)
-    num = int(sys.argv[1])
     # num = sys.argv[1]
-    print(type(num), num)
-    # num = 2
+    num = 2
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-    if num == 1 or num == 2:
-        gubun = 1
-    elif num == 3 or num == 4:
-        gubun = 2
-    p = Process(target=Window, args=(gubun,))
+
+    p = Process(target=Window, args=(num,))
     p.start()
     # p.join()
     print(' 자동 로그인 설정용 프로세스 시작\n')
@@ -70,6 +63,6 @@ if __name__ == '__main__':
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
 
-    manual_login(num)
+    manual_login(2)
     # manual_login(1)
     print(' 아이디 및 패스워드 입력 완료\n')

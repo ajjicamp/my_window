@@ -1,4 +1,4 @@
-# 일봉차트, 분봉차트, 틱차트 데이터를 kiwoom api를 통해 다운받는 프로그램.
+# kospi 및 kosdaq 전 종목의 일봉차트, 분봉차트, 틱차트 데이터를 kiwoom api를 통해 다운받는 프로그램.
 import sys
 
 from PyQt5.QtWidgets import *
@@ -14,7 +14,10 @@ import zipfile
 # logging.basicConfig(level=logging.INFO)
 
 class ChartData:
-    def __init__(self):
+    def __init__(self, start):
+        self.start = start
+        # self.end = end
+        print('target', self.start)
         self.connected = False  # for login event
         self.received = False  # for tr event
         self.tr_items = None  # tr input/output items
@@ -40,14 +43,26 @@ class ChartData:
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
-        print('codes', codes)
+        # print('codes', codes)
 
-        # 전 종목의 일봉 데이터
+        # 전 종목의 분봉 데이터
         tr_code = 'opt10080'
         rq_name = "주식분봉차트조회"
         db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
         dfs = pd.DataFrame()
-        for i, code in enumerate(codes):
+
+        xstart = 0
+        xend = 0
+
+        if self.start == 1:
+            xstart = 1
+            xend = int(len(codes) / 2)
+        elif self.start == 2:
+            xstart = int(len(codes) / 2) - 1
+            xend = len(codes) - 1
+
+        xcodes = codes[xstart:xend]
+        for i, code in enumerate(xcodes):
             count = 0
             # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
             # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
@@ -296,6 +311,8 @@ class ChartData:
         return enc_data
 
 if __name__ == "__main__":
+    start = int(sys.argv[1])
+    # start = 2
     app = QApplication(sys.argv)
-    chart_data = ChartData()
+    chart_data = ChartData(start)
     app.exec_()

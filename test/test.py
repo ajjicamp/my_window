@@ -24,6 +24,7 @@ if __name__ == '__main__':
 # print(hwnd)
 # win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
 # wtext = win32gui.GetWindowText(hwnd)
+
 # print('wtext', wtext)
 # print("getclassname", win32gui.GetClassName(hwnd))
 # print("getclassname", win32gui.GetClassName('KakaoTalkEdgeWndClass'))
