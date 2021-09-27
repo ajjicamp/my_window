@@ -2,7 +2,8 @@
 import sys
 
 from PyQt5.QtWidgets import *
-from PyQt5.QAxContainer import *
+# from PyQt5.QAxContainer import *
+from PyQt5.QAxContainer import QAxWidget
 import datetime
 import time
 import sqlite3
@@ -311,8 +312,8 @@ class ChartData:
         return enc_data
 
 if __name__ == "__main__":
-    start = int(sys.argv[1])
-    # start = 2
+    # start = int(sys.argv[1])
+    start = 2
     app = QApplication(sys.argv)
     chart_data = ChartData(start)
     app.exec_()

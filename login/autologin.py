@@ -45,10 +45,9 @@ class Window(QtWidgets.QMainWindow):
 if __name__ == '__main__':
     for x, par in enumerate(sys.argv):
         print('param', x, par)
-    num = int(sys.argv[1])
-    # num = sys.argv[1]
+    # num = int(sys.argv[1])
+    num = 3
     print(type(num), num)
-    # num = 2
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):
