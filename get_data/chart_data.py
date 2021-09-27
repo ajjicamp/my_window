@@ -1,9 +1,9 @@
 # kospi 및 kosdaq 전 종목의 일봉차트, 분봉차트, 틱차트 데이터를 kiwoom api를 통해 다운받는 프로그램.
 import sys
-
-from PyQt5.QtWidgets import *
 # from PyQt5.QAxContainer import *
+from PyQt5 import uic
 from PyQt5.QAxContainer import QAxWidget
+from PyQt5.QtWidgets import *
 import datetime
 import time
 import sqlite3
@@ -13,12 +13,12 @@ import pandas as pd
 import zipfile
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
+form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock-data.ui')[0]
 
-class ChartData:
-    def __init__(self, start):
-        self.start = start
-        # self.end = end
-        print('target', self.start)
+class Window(QMainWindow, form_class):
+    def __init__(self):
+        super().__init__()
+
         self.connected = False  # for login event
         self.received = False  # for tr event
         self.tr_items = None  # tr input/output items
@@ -35,12 +35,116 @@ class ChartData:
         self.CommConnect()
 
         # 일봉, 분봉, 틱 차트 데이터 수신
-        kospi = self.GetCodeListByMarket('0')
-        kosdaq = self.GetCodeListByMarket('10')
-        self.get_chart_data(kospi, 'a')
-        self.get_chart_data(kosdaq, 'b')
+        self.kospi = self.GetCodeListByMarket('0')
+        self.kosdaq = self.GetCodeListByMarket('10')
 
-    def get_chart_data(self, codes, gubun):
+        kospi_cnt = len(self.kospi)
+        kosdaq_cnt = len(self.kosdaq)
+
+        # ui
+        self.gubun = None
+        self.start = None
+        self.end = None
+        self.codes = None
+        self.setupUi(self)
+        self.radioButton.clicked.connect(self.radioButton_clicked)
+        self.radioButton_2.clicked.connect(self.radioButton2_clicked)
+        self.radioButton_3.clicked.connect(self.radioButton3_clicked)
+        self.radioButton_4.clicked.connect(self.radioButton4_clicked)
+        self.lineEdit.textChanged[str].connect(self.lineEdit_changed)
+        self.lineEdit_2.textChanged[str].connect(self.lineEdit2_changed)
+        self.pushButton_3.clicked.connect(self.pushButton3_clicked)
+
+        self.lineEdit_3.setText(str(kospi_cnt))
+
+
+    def radioButton_clicked(self):
+        self.gubun = 'day'
+        print('구분', self.gubun)
+
+    def radioButton2_clicked(self):
+        self.gubun = 'minute'
+        print('구분', self.gubun)
+
+    def radioButton3_clicked(self):
+        self.codes = self.kospi
+        self.initial = 'a'
+        print('구분', self.codes)
+
+    def radioButton4_clicked(self):
+        self.codes = self.kosdaq
+        self.initial = 'b'
+        print('구분', self.codes)
+
+    def lineEdit_changed(self, text):
+        self.start = int(text)
+        print('시작번호', self.start)
+
+    def lineEdit2_changed(self, text):
+        self.end = int(text)
+        print('끝번호', self.end)
+
+    def pushButton3_clicked(self):
+        if (self.gubun == None) or (self.codes == None) or (self.start == None):
+            print("옵션을 선택하세요")
+            return
+
+        if self.gubun == 'day':
+            self.get_day_data(self.codes, self.initial, self.start, self.end)
+
+        if self.gubun == 'minute':
+            print('분봉차트조회시작')
+            self.get_minute_data(self.codes, self.initial, self.start, self.end)
+
+    def get_day_data(self, codes, initial, start, end):
+        # 문자열로 오늘 날짜 얻기
+        now = datetime.datetime.now()
+        today = now.strftime("%Y%m%d")
+        # print('codes', codes)
+
+        # 전 종목의 일봉 데이터
+        tr_code = 'opt10081'
+        rq_name = "주식일봉차트조회"
+        db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
+        dfs = pd.DataFrame()
+
+        scodes = codes[start:end]
+        for i, code in enumerate(scodes):
+            count = 0
+            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
+            # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
+            df = self.block_request(tr_code,
+                                       종목코드=code,
+                                       기준일자=today,
+                                       # 틱범위=1,
+                                       수정주가구분=1,
+                                       output=rq_name,
+                                       next=0)
+            dfs = df
+            while self.tr_remained == True:
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/20')
+                time.sleep(0.2)
+                count += 1
+                df = self.block_request(tr_code,
+                                           종목코드=code,
+                                           기준일자=today,
+                                           # 틱범위=1,
+                                           수정주가구분=1,
+                                           output=rq_name,
+                                           next=2)
+                dfs = dfs.append(df, ignore_index=True)
+                if count == 20:
+                    break
+                # print('dfs:', dfs)
+
+            con = sqlite3.connect(db_name)
+            out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            dfs.to_sql(out_name, con, if_exists='append')
+            # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
+            time.sleep(3.6)
+
+    def get_minute_data(self, codes, initial, start, end):
+        print('get_minute_data로 넘어옴')
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
@@ -52,18 +156,9 @@ class ChartData:
         db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
         dfs = pd.DataFrame()
 
-        xstart = 0
-        xend = 0
-
-        if self.start == 1:
-            xstart = 1
-            xend = int(len(codes) / 2)
-        elif self.start == 2:
-            xstart = int(len(codes) / 2) - 1
-            xend = len(codes) - 1
-
-        xcodes = codes[xstart:xend]
-        for i, code in enumerate(xcodes):
+        scodes = codes[start:end]
+        print('scodes', scodes)
+        for i, code in enumerate(scodes):
             count = 0
             # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
             # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
@@ -92,7 +187,7 @@ class ChartData:
                 # print('dfs:', dfs)
 
             con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if gubun == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             dfs.to_sql(out_name, con, if_exists='append')
             # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
             time.sleep(3.6)
@@ -101,7 +196,7 @@ class ChartData:
     # Kiwoom _handler [SLOT]
     #------------------------
     def _handler_login(self, err_code):
-        print('handler_login')
+        # print('handler_login')
         logging.info(f"hander login {err_code}")
         if err_code == 0:
             self.connected = True
@@ -313,7 +408,8 @@ class ChartData:
 
 if __name__ == "__main__":
     # start = int(sys.argv[1])
-    start = 2
+    # start = 2
     app = QApplication(sys.argv)
-    chart_data = ChartData(start)
+    window = Window()
+    window.show()
     app.exec_()
