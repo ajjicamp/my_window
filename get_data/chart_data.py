@@ -43,19 +43,31 @@ class Window(QMainWindow, form_class):
 
         # ui
         self.gubun = None
+        self.codes = None
+        self.initial = None
         self.start = None
         self.end = None
         self.codes = None
+
         self.setupUi(self)
         self.radioButton.clicked.connect(self.radioButton_clicked)
         self.radioButton_2.clicked.connect(self.radioButton2_clicked)
+        self.radioButton_2.setChecked(True)
+        self.gubun = 'minute'
         self.radioButton_3.clicked.connect(self.radioButton3_clicked)
         self.radioButton_4.clicked.connect(self.radioButton4_clicked)
+        self.radioButton_4.setChecked(True)
+        self.codes = self.kosdaq
+        self.initial = 'b'
         self.lineEdit.textChanged[str].connect(self.lineEdit_changed)
+        self.lineEdit.setText(str(0))
+        self.start = 0
         self.lineEdit_2.textChanged[str].connect(self.lineEdit2_changed)
+        self.lineEdit_2.setText(str(kosdaq_cnt))
+        self.end = kosdaq_cnt
         self.pushButton_3.clicked.connect(self.pushButton3_clicked)
 
-        self.lineEdit_3.setText(str(kospi_cnt))
+        self.lineEdit_3.setText(str(kosdaq_cnt))
 
 
     def radioButton_clicked(self):
@@ -69,11 +81,13 @@ class Window(QMainWindow, form_class):
     def radioButton3_clicked(self):
         self.codes = self.kospi
         self.initial = 'a'
+        self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
     def radioButton4_clicked(self):
         self.codes = self.kosdaq
         self.initial = 'b'
+        self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
     def lineEdit_changed(self, text):
@@ -111,8 +125,8 @@ class Window(QMainWindow, form_class):
         scodes = codes[start:end]
         for i, code in enumerate(scodes):
             count = 0
-            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
-            # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
+            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)}')
+            # print(f"진행상황: {i}/{len(scodes)} 코드번호;{code}")
             df = self.block_request(tr_code,
                                        종목코드=code,
                                        기준일자=today,
@@ -122,8 +136,8 @@ class Window(QMainWindow, form_class):
                                        next=0)
             dfs = df
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/20')
-                time.sleep(0.2)
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/70')
+                time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
                                            종목코드=code,
@@ -133,18 +147,17 @@ class Window(QMainWindow, form_class):
                                            output=rq_name,
                                            next=2)
                 dfs = dfs.append(df, ignore_index=True)
-                if count == 20:
-                    break
+                # if count == 20:
+                #     break
                 # print('dfs:', dfs)
 
             con = sqlite3.connect(db_name)
             out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             dfs.to_sql(out_name, con, if_exists='append')
-            # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
-            time.sleep(3.6)
+            # df.to_sql(out_name, con, if_exists='append', chunksize=len(scodes)
+            # time.sleep(3.6)
 
     def get_minute_data(self, codes, initial, start, end):
-        print('get_minute_data로 넘어옴')
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
@@ -170,9 +183,11 @@ class Window(QMainWindow, form_class):
                                        output=rq_name,
                                        next=0)
             dfs = df
+            print('df첫째', df)
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/20')
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/70')
                 time.sleep(0.2)
+                # time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
                                            종목코드=code,
@@ -184,7 +199,8 @@ class Window(QMainWindow, form_class):
                 dfs = dfs.append(df, ignore_index=True)
                 if count == 20:
                     break
-                # print('dfs:', dfs)
+                print('\ndf while', df)
+                print('dfs: while', dfs)
 
             con = sqlite3.connect(db_name)
             out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
