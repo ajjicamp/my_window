@@ -120,93 +120,88 @@ class Window(QMainWindow, form_class):
         tr_code = 'opt10081'
         rq_name = "주식일봉차트조회"
         db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
-        dfs = pd.DataFrame()
-
         scodes = codes[start:end]
+        dfs = []
         for i, code in enumerate(scodes):
             count = 0
-            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)}')
-            # print(f"진행상황: {i}/{len(scodes)} 코드번호;{code}")
             df = self.block_request(tr_code,
-                                       종목코드=code,
-                                       기준일자=today,
-                                       # 틱범위=1,
-                                       수정주가구분=1,
-                                       output=rq_name,
-                                       next=0)
-            dfs = df
+                                    종목코드=code,
+                                    기준일자=today,
+                                    # 틱범위=1,
+                                    수정주가구분=1,
+                                    output=rq_name,
+                                    next=0)
+            dfs.append(df)
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/70')
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/16')
                 time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
-                                           종목코드=code,
-                                           기준일자=today,
-                                           # 틱범위=1,
-                                           수정주가구분=1,
-                                           output=rq_name,
-                                           next=2)
-                dfs = dfs.append(df, ignore_index=True)
-                # if count == 20:
-                #     break
-                # print('dfs:', dfs)
-
+                                        종목코드=code,
+                                        기준일자=today,
+                                        # 틱범위=1,
+                                        수정주가구분=1,
+                                        output=rq_name,
+                                        next=2)
+                dfs.append(df)
+            df = pd.concat(dfs)
+            df = df[['일자', '현재가', '시가', '고가', '저가', '거래량']]  # 종목코드는 table명으로 확인
             con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            dfs.to_sql(out_name, con, if_exists='append')
+            out_name = f"a{code}" if initial == 'a' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            df.to_sql(out_name, con, if_exists='append', index=False)
+            df_date = df.loc[-1]['일자']
+            print('마지막날짜', df_date)
+
             # df.to_sql(out_name, con, if_exists='append', chunksize=len(scodes)
             # time.sleep(3.6)
 
-    def get_minute_data(self, codes, initial, start, end):
-        # 문자열로 오늘 날짜 얻기
-        now = datetime.datetime.now()
-        today = now.strftime("%Y%m%d")
-        # print('codes', codes)
 
+    def get_minute_data(self, codes, initial, start, end):
         # 전 종목의 분봉 데이터
         tr_code = 'opt10080'
         rq_name = "주식분봉차트조회"
         db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
-        dfs = pd.DataFrame()
-
         scodes = codes[start:end]
-        print('scodes', scodes)
+        # print('scodes', scodes)
+        dfs = []
         for i, code in enumerate(scodes):
             count = 0
-            # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)}')
-            # print(f"진행상황: {i}/{len(codes)} 코드번호;{code}")
             df = self.block_request(tr_code,
-                                       종목코드=code,
-                                       # 기준일자=today,
-                                       틱범위=1,
-                                       수정주가구분=1,
-                                       output=rq_name,
-                                       next=0)
-            dfs = df
-            print('df첫째', df)
+                                    종목코드=code,
+                                    # 기준일자=today,
+                                    틱범위=1,
+                                    수정주가구분=1,
+                                    output=rq_name,
+                                    next=0)
+            dfs.append(df)
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/70')
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/82')
                 time.sleep(0.2)
                 # time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
-                                           종목코드=code,
-                                           # 기준일자=today,
-                                           틱범위=1,
-                                           수정주가구분=1,
-                                           output=rq_name,
-                                           next=2)
-                dfs = dfs.append(df, ignore_index=True)
+                                        종목코드=code,
+                                        # 기준일자=today,
+                                        틱범위=1,
+                                        수정주가구분=1,
+                                        output=rq_name,
+                                        next=2)
+                dfs.append(df)
                 if count == 20:
                     break
-                print('\ndf while', df)
-                print('dfs: while', dfs)
-
+            df = pd.concat(dfs)
+            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
             con = sqlite3.connect(db_name)
             out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            dfs.to_sql(out_name, con, if_exists='append')
-            # df.to_sql(out_name, con, if_exists='append', chunksize=len(codes)
+            df.to_sql(out_name, con, if_exists='append', index=False)
+            '''
+            # 마지막 코드 sql에 저장 ; kospi kosdaq 구분하여 
+            table name ; download info
+            column ; kospi/kosdaq, last_code, last_code_indexnum 
+            '''
+            # last_code = {}
             time.sleep(3.6)
+
 
     #------------------------
     # Kiwoom _handler [SLOT]
@@ -375,7 +370,7 @@ class Window(QMainWindow, form_class):
 
         self.tr_items = self.ParseDat(trcode, lines)
         self.tr_record = kwargs["output"]
-        # next = kwargs["next"]
+        next = kwargs["next"]
 
         # set input
         for id in kwargs:
@@ -423,8 +418,6 @@ class Window(QMainWindow, form_class):
         return enc_data
 
 if __name__ == "__main__":
-    # start = int(sys.argv[1])
-    # start = 2
     app = QApplication(sys.argv)
     window = Window()
     window.show()
