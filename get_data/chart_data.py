@@ -13,7 +13,7 @@ import pandas as pd
 import zipfile
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
-form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock-data.ui')[0]
+form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock_data.ui')[0]
 
 class Window(QMainWindow, form_class):
     def __init__(self):
@@ -44,7 +44,7 @@ class Window(QMainWindow, form_class):
         # ui
         self.gubun = None
         self.codes = None
-        self.initial = None
+        self.category = None
         self.start = None
         self.end = None
         self.codes = None
@@ -58,7 +58,7 @@ class Window(QMainWindow, form_class):
         self.radioButton_4.clicked.connect(self.radioButton4_clicked)
         self.radioButton_4.setChecked(True)
         self.codes = self.kosdaq
-        self.initial = 'b'
+        self.category = 'kosdaq'
         self.lineEdit.textChanged[str].connect(self.lineEdit_changed)
         self.lineEdit.setText(str(0))
         self.start = 0
@@ -80,13 +80,13 @@ class Window(QMainWindow, form_class):
 
     def radioButton3_clicked(self):
         self.codes = self.kospi
-        self.initial = 'a'
+        self.category = 'kospi'
         self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
     def radioButton4_clicked(self):
         self.codes = self.kosdaq
-        self.initial = 'b'
+        self.category = 'kosdaq'
         self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
@@ -104,22 +104,25 @@ class Window(QMainWindow, form_class):
             return
 
         if self.gubun == 'day':
-            self.get_day_data(self.codes, self.initial, self.start, self.end)
+            self.get_day_data(self.codes, self.category, self.start, self.end)
 
         if self.gubun == 'minute':
             print('분봉차트조회시작')
-            self.get_minute_data(self.codes, self.initial, self.start, self.end)
+            self.get_minute_data(self.codes, self.category, self.start, self.end)
 
-    def get_day_data(self, codes, initial, start, end):
+    def get_day_data(self, codes, category, start, end):
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
         # print('codes', codes)
 
         # 전 종목의 일봉 데이터
+        db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
+        con = sqlite3.connect(db_name)
+
         tr_code = 'opt10081'
         rq_name = "주식일봉차트조회"
-        db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
+
         scodes = codes[start:end]
         dfs = []
         for i, code in enumerate(scodes):
@@ -146,24 +149,33 @@ class Window(QMainWindow, form_class):
                 dfs.append(df)
             df = pd.concat(dfs)
             df = df[['일자', '현재가', '시가', '고가', '저가', '거래량']]  # 종목코드는 table명으로 확인
-            con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if initial == 'a' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
-            df_date = df.loc[-1]['일자']
-            print('마지막날짜', df_date)
 
-            # df.to_sql(out_name, con, if_exists='append', chunksize=len(scodes)
+            file_name = f'{category}_last_code.txt'
+            with open(file_name, 'w') as f:   # category ; kospi/kosdaq
+                f.write(f'day_data {code} {today}')           # 005930 20110304
+
             # time.sleep(3.6)
 
 
-    def get_minute_data(self, codes, initial, start, end):
+    def get_minute_data(self, codes, category, start, end):
         # 전 종목의 분봉 데이터
-        tr_code = 'opt10080'
-        rq_name = "주식분봉차트조회"
+        now = datetime.datetime.now()
+        today = now.strftime("%Y%m%d")
+
+        # sqlite3 db생성 및 준비
         db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
+        con = sqlite3.connect(db_name)
+
         scodes = codes[start:end]
         # print('scodes', scodes)
+
+        tr_code = 'opt10080'
+        rq_name = "주식분봉차트조회"
+
         dfs = []
+        last_code = None
         for i, code in enumerate(scodes):
             count = 0
             df = self.block_request(tr_code,
@@ -191,17 +203,16 @@ class Window(QMainWindow, form_class):
                     break
             df = pd.concat(dfs)
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if initial == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            out_name = f"a{code}" if category == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
-            '''
-            # 마지막 코드 sql에 저장 ; kospi kosdaq 구분하여 
-            table name ; download info
-            column ; kospi/kosdaq, last_code, last_code_indexnum 
-            '''
-            # last_code = {}
-            time.sleep(3.6)
 
+            # 마지막 종목CODE 저장
+
+            file_name = f'{category}_last_code.txt'
+            with open(file_name, 'w') as f:   # category ; kospi/kosdaq
+                f.write(f'minute_data {code} {today}')           # 005930 20110304
+
+            time.sleep(3.6)
 
     #------------------------
     # Kiwoom _handler [SLOT]
