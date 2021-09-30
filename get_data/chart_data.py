@@ -17,6 +17,7 @@ form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock_data.
 
 class Window(QMainWindow, form_class):
     def __init__(self):
+
         super().__init__()
 
         self.connected = False  # for login event
@@ -50,23 +51,37 @@ class Window(QMainWindow, form_class):
         self.codes = None
 
         self.setupUi(self)
+        # day/minute 선택
+        # radioButton
         self.radioButton.clicked.connect(self.radioButton_clicked)
+        # radioButton_2 # default minute
         self.radioButton_2.clicked.connect(self.radioButton2_clicked)
         self.radioButton_2.setChecked(True)
         self.gubun = 'minute'
+
+        # kospi/kosdaq 선택
+        # radioButton_3 ---> kospi
         self.radioButton_3.clicked.connect(self.radioButton3_clicked)
+        # radioButton_4 ---> kosdaq ; default
         self.radioButton_4.clicked.connect(self.radioButton4_clicked)
         self.radioButton_4.setChecked(True)
         self.codes = self.kosdaq
         self.category = 'kosdaq'
+
+        # lineEdit ; 시작번호 ---> kospi, kosdaq의 종목리스트 기준
         self.lineEdit.textChanged[str].connect(self.lineEdit_changed)
-        self.lineEdit.setText(str(0))
-        self.start = 0
+        self.lineEdit.setText(str(1))   # default 0
+        self.start = 1
+
+        # lineEdit_2 ; 끝번호 ---> kospi, kosdaq의 종목리스트 기준
         self.lineEdit_2.textChanged[str].connect(self.lineEdit2_changed)
         self.lineEdit_2.setText(str(kosdaq_cnt))
         self.end = kosdaq_cnt
+
+        # start download
         self.pushButton_3.clicked.connect(self.pushButton3_clicked)
 
+        # lineEdit_3 ; 전체종목수(참고용)
         self.lineEdit_3.setText(str(kosdaq_cnt))
 
 
@@ -81,22 +96,28 @@ class Window(QMainWindow, form_class):
     def radioButton3_clicked(self):
         self.codes = self.kospi
         self.category = 'kospi'
+        self.lineEdit_2.setText(str(len(self.codes)))
         self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
     def radioButton4_clicked(self):
         self.codes = self.kosdaq
-        self.category = 'kosdaq'
+        self.category = 'kosda'
+        self.lineEdit_2.setText(str(len(self.codes)))
         self.lineEdit_3.setText(str(len(self.codes)))
         print('구분', self.codes)
 
     def lineEdit_changed(self, text):
+        if text == "":
+            return
         self.start = int(text)
-        print('시작번호', self.start)
+        print('시작번호', self.lineEdit.text())
 
     def lineEdit2_changed(self, text):
+        if text == "":
+            return
         self.end = int(text)
-        print('끝번호', self.end)
+        print('시작번호', self.lineEdit_2.text())
 
     def pushButton3_clicked(self):
         if (self.gubun == None) or (self.codes == None) or (self.start == None):
@@ -117,13 +138,11 @@ class Window(QMainWindow, form_class):
         # print('codes', codes)
 
         # 전 종목의 일봉 데이터
-        db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
-        con = sqlite3.connect(db_name)
 
         tr_code = 'opt10081'
         rq_name = "주식일봉차트조회"
 
-        scodes = codes[start:end]
+        scodes = codes[start-1:end]   # slicing 할 때는 0부터 시작하여 끝번호 앞까지
         dfs = []
         for i, code in enumerate(scodes):
             count = 0
@@ -149,15 +168,30 @@ class Window(QMainWindow, form_class):
                 dfs.append(df)
             df = pd.concat(dfs)
             df = df[['일자', '현재가', '시가', '고가', '저가', '거래량']]  # 종목코드는 table명으로 확인
+
+            # sqlite3 db에 저장
+            db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
+            con = sqlite3.connect(db_name)
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
 
-            file_name = f'{category}_last_code.txt'
-            with open(file_name, 'w') as f:   # category ; kospi/kosdaq
-                f.write(f'day_data {code} {today}')           # 005930 20110304
+            # download info 저장
+            cur = con.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS downloadCodeInfo\
+                                                (category text, last_code text, update_day text)")
+
+            cur.execute("SELECT * FROM downloadCodeInfo WHERE category=?",(category,))
+            if cur.fetchall() == None:
+                cur.execute("INSERT INTO downloadCodeInfo(category, last_code, update_day) \
+                                        VALUES(?,?,?)", (category, code, today))
+            else:
+                cur.execute("UPDATE downloadCodeInfo SET (category=?, last_code=?, update_day=?)", \
+                                        (category, code, today))
+
+            con.commit()
+            con.close()
 
             # time.sleep(3.6)
-
 
     def get_minute_data(self, codes, category, start, end):
         # 전 종목의 분봉 데이터
@@ -165,8 +199,6 @@ class Window(QMainWindow, form_class):
         today = now.strftime("%Y%m%d")
 
         # sqlite3 db생성 및 준비
-        db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
-        con = sqlite3.connect(db_name)
 
         scodes = codes[start:end]
         # print('scodes', scodes)
@@ -203,15 +235,32 @@ class Window(QMainWindow, form_class):
                     break
             df = pd.concat(dfs)
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+
+            # sqlite3 db에 저장
+            db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
+            con = sqlite3.connect(db_name)
             out_name = f"a{code}" if category == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
 
-            # 마지막 종목CODE 저장
+            # 마지막 종목CODE정보 저장
+            cur = con.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS downloadCodeInfo\
+                                    (category text, last_code text, update_day text)")
 
-            file_name = f'{category}_last_code.txt'
-            with open(file_name, 'w') as f:   # category ; kospi/kosdaq
-                f.write(f'minute_data {code} {today}')           # 005930 20110304
-
+            cur.execute("SELECT * FROM downloadCodeInfo WHERE category=?", (category,))
+            if cur.fetchall() == "":
+                print("값이 None임")
+                cur.execute("INSERT INTO downloadCodeInfo(category, last_code, update_day) \
+                                                   VALUES(?,?,?)", (category, code, today))
+            else:
+                print("값이 None이 아님")
+                cur.execute("UPDATE downloadCodeInfo SET category=?, last_code=?, update_day=?", \
+                            (category, code, today))
+            con.commit()
+            con.close()
+            # file_name = f'{category}_last_code.txt'
+            # with open(file_name, 'w') as f:   # category ; kospi/kosdaq
+            #     f.write(f'minute_data {code} {today}')           # 005930 20110304
             time.sleep(3.6)
 
     #------------------------
