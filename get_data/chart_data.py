@@ -172,14 +172,20 @@ class Window(QMainWindow, form_class):
             # sqlite3 db에 저장
             db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
             con = sqlite3.connect(db_name)
+
             cur = con.cursor()
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            # sqlite table column '일자'를 primary key로 생성
-            table_name = '''CREATE TABLE IF NOT EXISTS {} (일자 text primary key, \
-                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)'''.format(out_name)
-            cur.execute(table_name)
-            df.to_sql(out_name, con, if_exists='append', index=False)
 
+            # sqlite table column '일자'를 primary key로 생성
+            qurey = "CREATE TABLE IF NOT EXISTS {} (일자 text, \
+                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+            cur.execute(qurey)
+
+            self.insert_bulk_record(con, db_name, out_name, df)
+            # df.to_sql(out_name, con, if_exists='append', index=False)
+            # df.to_sql(table_name, con, if_exists='append', index=False)
+
+            '''
             # download info 저장
             cur = con.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS _downloadCodeInfo \
@@ -195,8 +201,23 @@ class Window(QMainWindow, form_class):
 
             con.commit()
             con.close()
-
+            '''
             # time.sleep(3.6)
+
+    def insert_bulk_record(self, con, db_name, table_name, record):
+        record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
+        # record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))
+        print("record_data_list", record_data_list)
+        if record_data_list[-1] == ',':
+            record_data_list = record_data_list[:-1]
+        # sql_syntax = "INSERT OR IGNORE INTO %s, %s VALUES %s" %(db_name, table_name, record_data_list)
+        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" %(table_name, record_data_list)
+        cur =  con.cursor()
+        cur.execute(sql_syntax)
+        con.commit()
+
+        return True
+
 
     def get_minute_data(self, codes, category, start, end):
         # 전 종목의 분봉 데이터
