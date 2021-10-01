@@ -172,21 +172,26 @@ class Window(QMainWindow, form_class):
             # sqlite3 db에 저장
             db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
             con = sqlite3.connect(db_name)
+            cur = con.cursor()
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            # sqlite table column '일자'를 primary key로 생성
+            table_name = '''CREATE TABLE IF NOT EXISTS {} (일자 text primary key, \
+                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)'''.format(out_name)
+            cur.execute(table_name)
             df.to_sql(out_name, con, if_exists='append', index=False)
 
             # download info 저장
             cur = con.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS downloadCodeInfo\
+            cur.execute("CREATE TABLE IF NOT EXISTS _downloadCodeInfo \
                                                 (category text, last_code text, update_day text)")
 
-            cur.execute("SELECT * FROM downloadCodeInfo WHERE category=?",(category,))
-            if cur.fetchall() == None:
-                cur.execute("INSERT INTO downloadCodeInfo(category, last_code, update_day) \
+            cur.execute("SELECT * FROM _downloadCodeInfo WHERE category=?", (category,))
+            if cur.fetchall() == []:
+                cur.execute("INSERT INTO _downloadCodeInfo(category, last_code, update_day) \
                                         VALUES(?,?,?)", (category, code, today))
             else:
-                cur.execute("UPDATE downloadCodeInfo SET (category=?, last_code=?, update_day=?)", \
-                                        (category, code, today))
+                cur.execute("UPDATE _downloadCodeInfo SET category=?, last_code=?, update_day=? \
+                            WHERE category=?", (category, code, today, category))
 
             con.commit()
             con.close()
@@ -239,23 +244,24 @@ class Window(QMainWindow, form_class):
             # sqlite3 db에 저장
             db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
             con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if category == 'a' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            out_name = f"a{code}" if category == 'kospi' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
 
             # 마지막 종목CODE정보 저장
             cur = con.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS downloadCodeInfo\
+            cur.execute("CREATE TABLE IF NOT EXISTS _downloadCodeInfo\
                                     (category text, last_code text, update_day text)")
 
-            cur.execute("SELECT * FROM downloadCodeInfo WHERE category=?", (category,))
-            if cur.fetchall() == "":
+            cur.execute("SELECT * FROM _downloadCodeInfo WHERE category=?", (category,))
+            # print(cur.fatchall())
+            if cur.fetchall() == []:
                 print("값이 None임")
-                cur.execute("INSERT INTO downloadCodeInfo(category, last_code, update_day) \
+                cur.execute("INSERT INTO _downloadCodeInfo(category, last_code, update_day) \
                                                    VALUES(?,?,?)", (category, code, today))
             else:
                 print("값이 None이 아님")
-                cur.execute("UPDATE downloadCodeInfo SET category=?, last_code=?, update_day=?", \
-                            (category, code, today))
+                cur.execute("UPDATE _downloadCodeInfo SET category=?, last_code=?, update_day=? \
+                            WHERE category = ?", (category, code, today, category))
             con.commit()
             con.close()
             # file_name = f'{category}_last_code.txt'
