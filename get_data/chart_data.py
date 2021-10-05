@@ -125,6 +125,7 @@ class Window(QMainWindow, form_class):
             return
 
         if self.gubun == 'day':
+            print('일봉차트조회시작')
             self.get_day_data(self.codes, self.category, self.start, self.end)
 
         if self.gubun == 'minute':
@@ -143,8 +144,8 @@ class Window(QMainWindow, form_class):
         rq_name = "주식일봉차트조회"
 
         scodes = codes[start-1:end]   # slicing 할 때는 0부터 시작하여 끝번호 앞까지
-        dfs = []
         for i, code in enumerate(scodes):
+            dfs = []
             count = 0
             df = self.block_request(tr_code,
                                     종목코드=code,
@@ -155,7 +156,7 @@ class Window(QMainWindow, form_class):
                                     next=0)
             dfs.append(df)
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/16')
+                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}')
                 time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
@@ -177,7 +178,7 @@ class Window(QMainWindow, form_class):
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
 
             # sqlite table column '일자'를 primary key로 생성
-            qurey = "CREATE TABLE IF NOT EXISTS {} (일자 text, \
+            qurey = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, \
                         현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
             cur.execute(qurey)
 
@@ -207,12 +208,12 @@ class Window(QMainWindow, form_class):
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
         # record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))
-        print("record_data_list", record_data_list)
+        # print("record_data_list", record_data_list)
         if record_data_list[-1] == ',':
             record_data_list = record_data_list[:-1]
         # sql_syntax = "INSERT OR IGNORE INTO %s, %s VALUES %s" %(db_name, table_name, record_data_list)
-        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" %(table_name, record_data_list)
-        cur =  con.cursor()
+        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" % (table_name, record_data_list)
+        cur = con.cursor()
         cur.execute(sql_syntax)
         con.commit()
 
@@ -232,9 +233,9 @@ class Window(QMainWindow, form_class):
         tr_code = 'opt10080'
         rq_name = "주식분봉차트조회"
 
-        dfs = []
         last_code = None
         for i, code in enumerate(scodes):
+            dfs = []
             count = 0
             df = self.block_request(tr_code,
                                     종목코드=code,
@@ -246,8 +247,8 @@ class Window(QMainWindow, form_class):
             dfs.append(df)
             while self.tr_remained == True:
                 sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/82')
-                time.sleep(0.2)
-                # time.sleep(3.6)
+                # time.sleep(0.2)
+                time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
                                         종목코드=code,
@@ -257,17 +258,26 @@ class Window(QMainWindow, form_class):
                                         output=rq_name,
                                         next=2)
                 dfs.append(df)
-                if count == 20:
-                    break
+
+                # if count == 21:
+                #     break
             df = pd.concat(dfs)
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-
+            print(f'row {len(df)}')
             # sqlite3 db에 저장
             db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
             con = sqlite3.connect(db_name)
-            out_name = f"a{code}" if category == 'kospi' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            df.to_sql(out_name, con, if_exists='append', index=False)
+            cur = con.cursor()
+            out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            # sqlite table column '일자'를 primary key로 생성
+            qurey = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+                                  현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+            cur.execute(qurey)
 
+            self.insert_bulk_record(con, db_name, out_name, df)
+            # df.to_sql(out_name, con, if_exists='append', index=False)
+
+            '''
             # 마지막 종목CODE정보 저장
             cur = con.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS _downloadCodeInfo\
@@ -275,6 +285,7 @@ class Window(QMainWindow, form_class):
 
             cur.execute("SELECT * FROM _downloadCodeInfo WHERE category=?", (category,))
             # print(cur.fatchall())
+
             if cur.fetchall() == []:
                 print("값이 None임")
                 cur.execute("INSERT INTO _downloadCodeInfo(category, last_code, update_day) \
@@ -288,7 +299,8 @@ class Window(QMainWindow, form_class):
             # file_name = f'{category}_last_code.txt'
             # with open(file_name, 'w') as f:   # category ; kospi/kosdaq
             #     f.write(f'minute_data {code} {today}')           # 005930 20110304
-            time.sleep(3.6)
+            '''
+            # time.sleep(3.6)
 
     #------------------------
     # Kiwoom _handler [SLOT]
