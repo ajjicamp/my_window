@@ -16,10 +16,9 @@ import zipfile
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock_data.ui')[0]
 
 class Window(QMainWindow, form_class):
-    def __init__(self):
-
+    def __init__(self, num):
         super().__init__()
-
+        self.num = num
         self.connected = False  # for login event
         self.received = False  # for tr event
         self.tr_items = None  # tr input/output items
@@ -117,7 +116,7 @@ class Window(QMainWindow, form_class):
         if text == "":
             return
         self.end = int(text)
-        print('시작번호', self.lineEdit_2.text())
+        print('끝번호', self.lineEdit_2.text())
 
     def pushButton3_clicked(self):
         if (self.gubun == None) or (self.codes == None) or (self.start == None):
@@ -125,10 +124,13 @@ class Window(QMainWindow, form_class):
             return
 
         if self.gubun == 'day':
+            print('일봉트조회시작')
+            print(f'시작번호 {self.start} 끝번호 {self.end}')
             self.get_day_data(self.codes, self.category, self.start, self.end)
 
         if self.gubun == 'minute':
             print('분봉차트조회시작')
+            print(f'시작번호 {self.start} 끝번호 {self.end}')
             self.get_minute_data(self.codes, self.category, self.start, self.end)
 
     def get_day_data(self, codes, category, start, end):
@@ -170,8 +172,10 @@ class Window(QMainWindow, form_class):
             df = df[['일자', '현재가', '시가', '고가', '저가', '거래량']]  # 종목코드는 table명으로 확인
 
             # sqlite3 db에 저장
-            db_name = "C:/Users/USER/PycharmProjects/my_window/db/day_chart.db"
-            con = sqlite3.connect(db_name)
+            fath = "C:/Users/USER/PycharmProjects/my_window/db/"
+            filename = f'daychart{self.num}.db'
+            db = fath + filename
+            con = sqlite3.connect(db)
 
             cur = con.cursor()
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
@@ -181,7 +185,7 @@ class Window(QMainWindow, form_class):
                         현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
             cur.execute(qurey)
 
-            self.insert_bulk_record(con, db_name, out_name, df)
+            self.insert_bulk_record(con, db, out_name, df)
             # df.to_sql(out_name, con, if_exists='append', index=False)
             # df.to_sql(table_name, con, if_exists='append', index=False)
 
@@ -207,7 +211,7 @@ class Window(QMainWindow, form_class):
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
         # record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))
-        print("record_data_list", record_data_list)
+        # print("record_data_list", record_data_list)
         if record_data_list[-1] == ',':
             record_data_list = record_data_list[:-1]
         # sql_syntax = "INSERT OR IGNORE INTO %s, %s VALUES %s" %(db_name, table_name, record_data_list)
@@ -246,8 +250,8 @@ class Window(QMainWindow, form_class):
             dfs.append(df)
             while self.tr_remained == True:
                 sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/82')
-                time.sleep(0.2)
-                # time.sleep(3.6)
+                # time.sleep(0.2)
+                time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
                                         종목코드=code,
@@ -263,11 +267,14 @@ class Window(QMainWindow, form_class):
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
 
             # sqlite3 db에 저장
-            db_name = "C:/Users/USER/PycharmProjects/my_window/db/minute_chart.db"
-            con = sqlite3.connect(db_name)
+            fath = "C:/Users/USER/PycharmProjects/my_window/db/"
+            filename = f'minute_chart{self.num}.db'
+            db = fath + filename
+            con = sqlite3.connect(db)
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
             df.to_sql(out_name, con, if_exists='append', index=False)
 
+            '''
             # 마지막 종목CODE정보 저장
             cur = con.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS _downloadCodeInfo\
@@ -288,7 +295,8 @@ class Window(QMainWindow, form_class):
             # file_name = f'{category}_last_code.txt'
             # with open(file_name, 'w') as f:   # category ; kospi/kosdaq
             #     f.write(f'minute_data {code} {today}')           # 005930 20110304
-            time.sleep(3.6)
+            '''
+            # time.sleep(3.6)
 
     #------------------------
     # Kiwoom _handler [SLOT]
@@ -505,7 +513,9 @@ class Window(QMainWindow, form_class):
         return enc_data
 
 if __name__ == "__main__":
+    num = sys.argv[1]    # 키움id 기준 첫번째계정, 두번째 계정의 모의서버, 실서버 접속에 따라 sqlite3 db를 분리하여 저장하기 위하여 구분.
+    # num = 1
     app = QApplication(sys.argv)
-    window = Window()
+    window = Window(num)
     window.show()
     app.exec_()
