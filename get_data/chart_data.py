@@ -40,7 +40,8 @@ class Window(QMainWindow, form_class):
 
         kospi_cnt = len(self.kospi)
         kosdaq_cnt = len(self.kosdaq)
-
+        print('kosdaq_list', self.kosdaq)
+        print(self.kosdaq[70])
         # ui
         self.gubun = None
         self.codes = None
@@ -134,6 +135,23 @@ class Window(QMainWindow, form_class):
             self.get_minute_data(self.codes, self.category, self.start, self.end)
 
     def get_day_data(self, codes, category, start, end):
+        # sqlite3 db에서 마지막 table이름을 읽어와서 codes의 values를 찾아 index번호를 구한 후 그 다음 index번호부터 시작한다.
+        # sqlite3의 마지막table이름 구하기
+        fath = "C:/Users/USER/PycharmProjects/my_window/db/"
+        filename = f'daychart{self.num}.db'
+        db = fath + filename
+        con = sqlite3.connect(db)
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table")
+        last_table = str(cur.fetchall()[-1])
+        con.close()
+        if last_table[-1] == ',':
+            last_table = last_table[:-1]
+        last_table_index = codes.index(last_table)
+        start = last_table_index
+
+        print('start', start)
+
         # 문자열로 오늘 날짜 얻기
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
@@ -513,8 +531,8 @@ class Window(QMainWindow, form_class):
         return enc_data
 
 if __name__ == "__main__":
-    num = sys.argv[1]    # 키움id 기준 첫번째계정, 두번째 계정의 모의서버, 실서버 접속에 따라 sqlite3 db를 분리하여 저장하기 위하여 구분.
-    # num = 1
+    # num = sys.argv[1]    # 키움id 기준 첫번째계정, 두번째 계정의 모의서버, 실서버 접속에 따라 sqlite3 db를 분리하여 저장하기 위하여 구분.
+    num = 1
     app = QApplication(sys.argv)
     window = Window(num)
     window.show()
