@@ -1,29 +1,33 @@
-# kospi 및 kosdaq 전 종목의 일봉차트, 분봉차트, 틱차트 데이터를 kiwoom api를 통해 다운받는 프로그램.
+import os
 import sys
-# from PyQt5.QAxContainer import *
-from PyQt5 import uic
-from PyQt5.QAxContainer import QAxWidget
+from PyQt5.QAxContainer import *
 from PyQt5.QtWidgets import *
+import logging
+import pandas as pd
+import pythoncom
+import zipfile
+import sqlite3
 import datetime
 import time
-import sqlite3
-import logging
-import pythoncom
-import pandas as pd
-import zipfile
-# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
-# logging.basicConfig(level=logging.INFO)
-form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/stock_data.ui')[0]
 
-class Window(QMainWindow, form_class):
-    def __init__(self, num):
+class GetMinuteData:
+    def __init__(self, num, category):
         super().__init__()
         self.num = num
+        self.category = category
+
         self.connected = False  # for login event
         self.received = False  # for tr event
         self.tr_items = None  # tr input/output items
         self.tr_data = None  # tr output data
         self.tr_record = None
+
+        self.gubun = None
+        self.codes = None
+        # self.category = None
+        self.start = None
+        self.end = None
+        self.codes = None
 
         self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")  # PyQt5.QAxContainer 모듈
 
@@ -38,209 +42,49 @@ class Window(QMainWindow, form_class):
         self.kospi = self.GetCodeListByMarket('0')
         self.kosdaq = self.GetCodeListByMarket('10')
 
-        kospi_cnt = len(self.kospi)
-        kosdaq_cnt = len(self.kosdaq)
-        # print('kosdaq_list', self.kosdaq)
-        # print(self.kosdaq[70])
+        if self.category == 'kosdaq':
+            self.codes = self.kosdaq
+        elif self.category == 'kospi':
+            self.codes = self.kospi
 
-        # ui
-        self.gubun = None
-        self.codes = None
-        self.category = None
-        self.start = None
-        self.end = None
-        self.codes = None
-
-        self.setupUi(self)
-        # day/minute 선택
-        # radioButton
-        self.radioButton.clicked.connect(self.radioButton_clicked)
-        # radioButton_2 # default minute
-        self.radioButton_2.clicked.connect(self.radioButton2_clicked)
-        self.radioButton_2.setChecked(True)
-        self.gubun = 'minute'
-
-        # kospi/kosdaq 선택
-        # radioButton_3 ---> kospi
-        self.radioButton_3.clicked.connect(self.radioButton3_clicked)
-        # radioButton_4 ---> kosdaq ; default
-        self.radioButton_4.clicked.connect(self.radioButton4_clicked)
-        self.radioButton_4.setChecked(True)
-        self.codes = self.kosdaq
-        self.category = 'kosdaq'
-
-        # lineEdit ; 시작번호 ---> kospi, kosdaq의 종목리스트 기준
-        self.lineEdit.textChanged[str].connect(self.lineEdit_changed)
-        self.lineEdit.setText(str(1))   # default 0
-        self.start = 1
-
-        # lineEdit_2 ; 끝번호 ---> kospi, kosdaq의 종목리스트 기준
-        self.lineEdit_2.textChanged[str].connect(self.lineEdit2_changed)
-        self.lineEdit_2.setText(str(kosdaq_cnt))
-        self.end = kosdaq_cnt
-
-        # start download
-        self.pushButton_3.clicked.connect(self.pushButton3_clicked)
-
-        # lineEdit_3 ; 전체종목수(참고용)
-        self.lineEdit_3.setText(str(kosdaq_cnt))
-
-
-    def radioButton_clicked(self):
-        self.gubun = 'day'
-        print('구분', self.gubun)
-
-    def radioButton2_clicked(self):
-        self.gubun = 'minute'
-        print('구분', self.gubun)
-
-    def radioButton3_clicked(self):
-        self.codes = self.kospi
-        self.category = 'kospi'
-        self.lineEdit_2.setText(str(len(self.codes)))
-        self.lineEdit_3.setText(str(len(self.codes)))
-        print('구분', self.codes)
-
-    def radioButton4_clicked(self):
-        self.codes = self.kosdaq
-        self.category = 'kosda'
-        self.lineEdit_2.setText(str(len(self.codes)))
-        self.lineEdit_3.setText(str(len(self.codes)))
-        print('구분', self.codes)
-
-    def lineEdit_changed(self, text):
-        if text == "":
-            return
-        self.start = int(text)
-        print('시작번호', self.lineEdit.text())
-
-    def lineEdit2_changed(self, text):
-        if text == "":
-            return
-        self.end = int(text)
-        print('끝번호', self.lineEdit_2.text())
-
-    def pushButton3_clicked(self):
-        if (self.gubun == None) or (self.codes == None) or (self.start == None):
-            print("옵션을 선택하세요")
-            return
-
-        if self.gubun == 'day':
-            print('일봉트조회시작')
-            print(f'시작번호 {self.start} 끝번호 {self.end}')
-            self.get_day_data(self.codes, self.category, self.start, self.end)
-
-        if self.gubun == 'minute':
-            print('분봉차트조회시작')
-            print(f'시작번호 {self.start} 끝번호 {self.end}')
-            self.get_minute_data(self.codes, self.category, self.start, self.end)
-
-    def get_day_data(self, codes, category, start, end):
-        # sqlite3 db에서 마지막 table이름을 읽어와서 codes의 values를 찾아 index번호를 구한 후 그 다음 index번호부터 시작한다.
-        # sqlite3의 마지막table이름 구하기
-        fath = "C:/Users/USER/PycharmProjects/my_window/db/"
-        filename = f'daychart{self.num}.db'
-        db = fath + filename
-        con = sqlite3.connect(db)
-        cur = con.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table")
-        last_table = str(cur.fetchall()[-1])
-        con.close()
-        if last_table[-1] == ',':
-            last_table = last_table[:-1]
-        last_table_index = codes.index(last_table)
-        start = last_table_index
-
-        print('start', start)
-
-        # 문자열로 오늘 날짜 얻기
-        now = datetime.datetime.now()
-        today = now.strftime("%Y%m%d")
-        # print('codes', codes)
-
-        # 전 종목의 일봉 데이터
-
-        tr_code = 'opt10081'
-        rq_name = "주식일봉차트조회"
-
-        scodes = codes[start-1:end]   # slicing 할 때는 0부터 시작하여 끝번호 앞까지
-        dfs = []
-        for i, code in enumerate(scodes):
-            count = 0
-            df = self.block_request(tr_code,
-                                    종목코드=code,
-                                    기준일자=today,
-                                    # 틱범위=1,
-                                    수정주가구분=1,
-                                    output=rq_name,
-                                    next=0)
-            dfs.append(df)
-            while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/16')
-                time.sleep(3.6)
-                count += 1
-                df = self.block_request(tr_code,
-                                        종목코드=code,
-                                        기준일자=today,
-                                        # 틱범위=1,
-                                        수정주가구분=1,
-                                        output=rq_name,
-                                        next=2)
-                dfs.append(df)
-            df = pd.concat(dfs)
-            df = df[['일자', '현재가', '시가', '고가', '저가', '거래량']]  # 종목코드는 table명으로 확인
-
-            # sqlite3 db에 저장
-            fath = "C:/Users/USER/PycharmProjects/my_window/db/"
-            filename = f'daychart{self.num}.db'
-            db = fath + filename
-            con = sqlite3.connect(db)
-
+        #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
+        db_name = f"D:\minute_chart{self.num}.db"
+        if not os.path.isfile(db_name):
+            self.start = 0
+        else:
+            con = sqlite3.connect(db_name)
             cur = con.cursor()
-            out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+            cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            last_table = str(cur.fetchall()[-1][0][1:])
+            con.close()
+            self.start = self.codes.index(last_table) + 1   # last_table 다음 code부터 수행
 
-            # sqlite table column '일자'를 primary key로 생성
-            qurey = "CREATE TABLE IF NOT EXISTS {} (일자 text, \
-                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
-            cur.execute(qurey)
+        # end_num 설정
+        if self.num == '01':
+            self.end = 400
+        elif self.num == '02':
+            self.end = 800
+        elif self.num == '03':
+            self.end = 1200
+        elif self.num == '04':
+            self.end = len(self.codes)
 
-            self.insert_bulk_record(con, db, out_name, df)
-            # df.to_sql(out_name, con, if_exists='append', index=False)
-            # df.to_sql(table_name, con, if_exists='append', index=False)
+        print(f"시작번호: {self.start}, 끝번호: {self.end}")
 
-            # time.sleep(3.6)
+        self.get_minute_data(self.codes[self.start: self.end])
 
-    def insert_bulk_record(self, con, db_name, table_name, record):
-        record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
-        # record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))
-        # print("record_data_list", record_data_list)
-        if record_data_list[-1] == ',':
-            record_data_list = record_data_list[:-1]
-        # sql_syntax = "INSERT OR IGNORE INTO %s, %s VALUES %s" %(db_name, table_name, record_data_list)
-        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" %(table_name, record_data_list)
-        cur =  con.cursor()
-        cur.execute(sql_syntax)
-        con.commit()
-
-        return True
-
-
-    def get_minute_data(self, codes, category, start, end):
+    def get_minute_data(self, codes):
         # 전 종목의 분봉 데이터
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
 
         # sqlite3 db생성 및 준비
-
-        scodes = codes[start:end]
-        # print('scodes', scodes)
-
         tr_code = 'opt10080'
         rq_name = "주식분봉차트조회"
 
         dfs = []
-        last_code = None
-        for i, code in enumerate(scodes):
+        # last_code = None
+        for i, code in enumerate(codes):
             count = 0
             df = self.block_request(tr_code,
                                     종목코드=code,
@@ -251,7 +95,8 @@ class Window(QMainWindow, form_class):
                                     next=0)
             dfs.append(df)
             while self.tr_remained == True:
-                sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(scodes)} ---> 연속조회 {count + 1}/82')
+                # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/82')
+                sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 # time.sleep(0.2)
                 time.sleep(3.6)
                 count += 1
@@ -268,29 +113,35 @@ class Window(QMainWindow, form_class):
             df = pd.concat(dfs)
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
 
-            # sqlite3 db에 저장 todo day_chart와 동일하게 수정필요.
-            fath = "C:/Users/USER/PycharmProjects/my_window/db/"
+            # sqlite3 db에 저장
+            # sqlite table column '체결시간'을 primary key로 생성
+            fath = "D:/"
             filename = f'minute_chart{self.num}.db'
             db = fath + filename
             con = sqlite3.connect(db)
             cur = con.cursor()
             out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-
-            # sqlite table column '일자'를 primary key로 생성
-            query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, \
-                                    현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+            query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
             cur.execute(query)
 
             self.insert_bulk_record(con, db, out_name, df)
 
-            # out_name = f"a{code}" if category == 'kospi' else f"b{code}"   # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            # df.to_sql(out_name, con, if_exists='append', index=False)
+    def insert_bulk_record(self, con, db_name, table_name, record):
+        record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
+        # record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))
+        # print("record_data_list", record_data_list)
+        if record_data_list[-1] == ',':
+            record_data_list = record_data_list[:-1]
+        # sql_syntax = "INSERT OR IGNORE INTO %s, %s VALUES %s" %(db_name, table_name, record_data_list)
+        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" %(table_name, record_data_list)
+        cur = con.cursor()
+        cur.execute(sql_syntax)
+        con.commit()
 
-            # time.sleep(3.6)
-
-    #------------------------
+    # ------------------------
     # Kiwoom _handler [SLOT]
-    #------------------------
+    # ------------------------
     def _handler_login(self, err_code):
         # print('handler_login')
         logging.info(f"hander login {err_code}")
@@ -353,6 +204,7 @@ class Window(QMainWindow, form_class):
             while not self.connected:
                 pythoncom.PumpWaitingMessages()
 
+
     def CommRqData(self, rqname, trcode, next, screen):
         """
         TR을 서버로 송신합니다.
@@ -363,6 +215,7 @@ class Window(QMainWindow, form_class):
         :return: None
         """
         self.ocx.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, trcode, next, screen)
+
 
     def GetLoginInfo(self, tag):
         """
@@ -407,7 +260,8 @@ class Window(QMainWindow, form_class):
         :param screen: 화면번호
         :return:
         """
-        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next, code_count, type, rqname, screen);
+        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next, code_count,
+                                   type, rqname, screen);
         return ret
 
     def GetCodeListByMarket(self, market):
@@ -471,7 +325,7 @@ class Window(QMainWindow, form_class):
         while not self.received:
             pythoncom.PumpWaitingMessages()
 
-        return self.tr_data       # df output항목을 columns로 하는 데이터프레임을 반환(_handler_tr과 상호작용
+        return self.tr_data  # df output항목을 columns로 하는 데이터프레임을 반환(_handler_tr과 상호작용
 
     def ReadEnc(self, trcode):
         openapi_path = "C:/OpenAPI"
@@ -502,10 +356,12 @@ class Window(QMainWindow, form_class):
             enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
         return enc_data
 
-if __name__ == "__main__":
-    # num = sys.argv[1]    # 키움id 기준 첫번째계정, 두번째 계정의 모의서버, 실서버 접속에 따라 sqlite3 db를 분리하여 저장하기 위하여 구분.
-    num = 1
+
+if __name__ == '__main__':
+    # num = sys.argv[1]
+    num = '01'
+    # category = sys.argv[2]
+    category = 'kosdaq'
     app = QApplication(sys.argv)
-    window = Window(num)
-    window.show()
+    getdata = GetMinuteData(num, category)
     app.exec_()
