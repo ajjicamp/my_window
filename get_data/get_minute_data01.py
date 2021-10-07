@@ -1,5 +1,6 @@
 import os
 import sys
+from multiprocessing import Process, Lock
 from PyQt5.QAxContainer import *
 from PyQt5.QtWidgets import *
 import logging
@@ -11,8 +12,9 @@ import datetime
 import time
 
 class GetMinuteData:
-    def __init__(self, num, category):
+    def __init__(self, num, category, lock):
         super().__init__()
+        app = QApplication(sys.argv)
         self.num = num
         self.category = category
 
@@ -48,7 +50,7 @@ class GetMinuteData:
             self.codes = self.kospi
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"D:\minute_chart{self.num}.db"
+        db_name = f"E:\minute_chart{self.num}.db"
         if not os.path.isfile(db_name):
             self.start = 0
         else:
@@ -71,9 +73,10 @@ class GetMinuteData:
 
         print(f"시작번호: {self.start}, 끝번호: {self.end}")
 
-        self.get_minute_data(self.codes[self.start: self.end])
+        self.get_minute_data(self.codes[self.start: self.end], self.category)
+        app.exec_()
 
-    def get_minute_data(self, codes):
+    def get_minute_data(self, codes, category):
         # 전 종목의 분봉 데이터
         now = datetime.datetime.now()
         today = now.strftime("%Y%m%d")
@@ -82,9 +85,9 @@ class GetMinuteData:
         tr_code = 'opt10080'
         rq_name = "주식분봉차트조회"
 
-        dfs = []
         # last_code = None
         for i, code in enumerate(codes):
+            dfs = []
             count = 0
             df = self.block_request(tr_code,
                                     종목코드=code,
@@ -111,11 +114,13 @@ class GetMinuteData:
                 if count == 20:
                     break
             df = pd.concat(dfs)
+            print('df크기', len(df))
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
 
             # sqlite3 db에 저장
             # sqlite table column '체결시간'을 primary key로 생성
-            fath = "D:/"
+            # fath = "D:/"
+            fath = "E:/"
             filename = f'minute_chart{self.num}.db'
             db = fath + filename
             con = sqlite3.connect(db)
@@ -124,8 +129,8 @@ class GetMinuteData:
             query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
                         현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
             cur.execute(query)
-
             self.insert_bulk_record(con, db, out_name, df)
+            con.close()
 
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
@@ -356,12 +361,15 @@ class GetMinuteData:
             enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
         return enc_data
 
-
 if __name__ == '__main__':
     # num = sys.argv[1]
     num = '01'
     # category = sys.argv[2]
     category = 'kosdaq'
-    app = QApplication(sys.argv)
-    getdata = GetMinuteData(num, category)
-    app.exec_()
+    lock = Lock()
+    # app = QApplication(sys.argv)
+    # p = Process(target=GetMinuteData, args=(num, category, lock), daemon=True)
+    # p.start()
+    # p.join()
+    getdata = GetMinuteData(num, category, lock)
+    # app.exec_()

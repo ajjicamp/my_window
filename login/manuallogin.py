@@ -72,6 +72,7 @@ def manual_login(gubun):
         print("본서버에 연결작업 진행중")
         if not win32gui.IsWindowEnabled(win32gui.GetDlgItem(hwndd, 0x3EA)):
             click_button(win32gui.GetDlgItem(hwndd, 0x3ED))
+
     if gubun in [1, 2]:
         enter_keys(win32gui.GetDlgItem(hwndd, 0x3E8), USER_ID1)
         enter_keys(win32gui.GetDlgItem(hwndd, 0x3E9), USER_PW1)
@@ -102,9 +103,9 @@ def auto_on(gubun):
         edit = win32gui.GetDlgItem(hwndd, 0xCC)
         print('edit', edit)
         if gubun == 1:
-            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP1)
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP1)    # 계정1 계좌비밀번호
         elif gubun == 2:
-            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP2)
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP2)    # 계정2 계좌비밀번호
         click_button(win32gui.GetDlgItem(hwndd, 0xD4))
         click_button(win32gui.GetDlgItem(hwndd, 0xD3))
         click_button(win32gui.GetDlgItem(hwndd, 0x01))
