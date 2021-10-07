@@ -50,7 +50,7 @@ class GetMinuteData:
             self.codes = self.kospi
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"E:\minute_chart{self.num}.db"
+        db_name = f"D:\minute_chart{self.num}.db"
         if not os.path.isfile(db_name):
             self.start = 0
         else:
@@ -87,7 +87,7 @@ class GetMinuteData:
 
         # last_code = None
         for i, code in enumerate(codes):
-            dfs = []
+            # dfs = []
             count = 0
             df = self.block_request(tr_code,
                                     종목코드=code,
@@ -96,12 +96,15 @@ class GetMinuteData:
                                     수정주가구분=1,
                                     output=rq_name,
                                     next=0)
-            dfs.append(df)
+            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+            self.save_sqlite3(df, code)
+            time.sleep(3.6)
+
+            # dfs.append(df)
             while self.tr_remained == True:
                 # sys.stdout.write(f'\r코드번호{code} 진행중: {i + 1}/{len(codes)} ---> 연속조회 {count + 1}/82')
                 sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 # time.sleep(0.2)
-                time.sleep(3.6)
                 count += 1
                 df = self.block_request(tr_code,
                                         종목코드=code,
@@ -110,27 +113,51 @@ class GetMinuteData:
                                         수정주가구분=1,
                                         output=rq_name,
                                         next=2)
-                dfs.append(df)
-                if count == 20:
-                    break
-            df = pd.concat(dfs)
-            print('df크기', len(df))
-            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+                df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+                self.save_sqlite3(df, code)
+                time.sleep(3.6)
 
-            # sqlite3 db에 저장
-            # sqlite table column '체결시간'을 primary key로 생성
-            # fath = "D:/"
-            fath = "E:/"
-            filename = f'minute_chart{self.num}.db'
-            db = fath + filename
-            con = sqlite3.connect(db)
-            cur = con.cursor()
-            out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-            query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
-                        현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
-            cur.execute(query)
-            self.insert_bulk_record(con, db, out_name, df)
-            con.close()
+                # dfs.append(df)
+                if count == 5:
+                    break
+            # df = pd.concat(dfs)
+            # print('df크기', len(df))
+            # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+            # self.save_sqlite3(df, code)
+
+    def save_sqlite3(self, df, code):
+        print('df크기', len(df))
+
+        fath = "D:/"
+        filename = f'minute_chart{self.num}.db'
+        db = fath + filename
+        con = sqlite3.connect(db)
+        cur = con.cursor()
+        out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+        query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+                    현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+        cur.execute(query)
+        # df.to_sql(out_name, con, if_exists='append', index=False, chunksize=len(df))
+        # con.close()
+
+        self.insert_bulk_record(con, db, out_name, df)
+        con.close()
+        '''
+        # sqlite3 db에 저장
+        # sqlite table column '체결시간'을 primary key로 생성
+        # fath = "D:/"
+        fath = "E:/"
+        filename = f'minute_chart{self.num}.db'
+        db = fath + filename
+        con = sqlite3.connect(db)
+        cur = con.cursor()
+        out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+        query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+                    현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+        cur.execute(query)
+        self.insert_bulk_record(con, db, out_name, df)
+        con.close()
+        '''
 
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
@@ -362,10 +389,10 @@ class GetMinuteData:
         return enc_data
 
 if __name__ == '__main__':
-    # num = sys.argv[1]
-    num = '01'
-    # category = sys.argv[2]
-    category = 'kosdaq'
+    num = sys.argv[1]
+    # num = '01'
+    category = sys.argv[2]
+    # category = 'kosdaq'
     lock = Lock()
     # app = QApplication(sys.argv)
     # p = Process(target=GetMinuteData, args=(num, category, lock), daemon=True)
