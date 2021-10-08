@@ -52,7 +52,14 @@ class GetMinuteData:
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
         db_name = f"D:\minute_chart{self.num}.db"
         if not os.path.isfile(db_name):
-            self.start = 0
+            if self.num == '01':
+                self.start = 0
+            elif self.num == '02':
+                self.start = 400
+            elif self.num == '03':
+                self.start = 800
+            elif self.num == '04':
+                self.start = 1200
         else:
             con = sqlite3.connect(db_name)
             cur = con.cursor()
@@ -142,22 +149,6 @@ class GetMinuteData:
 
         self.insert_bulk_record(con, db, out_name, df)
         con.close()
-        '''
-        # sqlite3 db에 저장
-        # sqlite table column '체결시간'을 primary key로 생성
-        # fath = "D:/"
-        fath = "E:/"
-        filename = f'minute_chart{self.num}.db'
-        db = fath + filename
-        con = sqlite3.connect(db)
-        cur = con.cursor()
-        out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-        query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
-                    현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
-        cur.execute(query)
-        self.insert_bulk_record(con, db, out_name, df)
-        con.close()
-        '''
 
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
