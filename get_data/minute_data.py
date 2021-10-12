@@ -177,7 +177,7 @@ class MinuteDataDownload:
                 # dfs.append(df)
                 # if count == 10:
                 #     break
-        self.queryQ.put(['다운로드완료'])
+        self.queryQ.put('다운로드완료')
 
             # df = pd.concat(dfs)
             # print('df크기', len(df))
@@ -546,6 +546,7 @@ if __name__ == '__main__':
     manual_login(3)
     print(' 아이디 및 패스워드 입력 완료\n')
 
+    '''
     time.sleep(30)
     # DayDataDownload process-4 start
     login_info = f'{openapi_path}/system/Autologin.dat'
@@ -566,7 +567,7 @@ if __name__ == '__main__':
     manual_login(4)
     # manual_login(2)
     print(' 아이디 및 패스워드 입력 완료\n')
-
+    '''
     '''
     # 아래 로직 작동안함.
     while find_window('Open API login') != 0:
