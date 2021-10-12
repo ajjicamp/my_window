@@ -11,11 +11,14 @@ import zipfile
 import sqlite3
 import datetime
 import time
-from telegram_test import *
+import logging
+# from telegram_test import *
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_minute
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
+# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 app = QApplication(sys.argv)
 
@@ -107,14 +110,19 @@ class MinuteDataDownload:
             time.sleep(3.6)
             # dfs = []
             count = 0
-            try:
-                self.lock.acquire()
-                df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                         output='주식분봉차트조회', next=0)
-                self.lock.release()
-            except Exception as e:
-                print('에러발생', e)
-                telegram_massage(f"에러발생 {e}")
+            # try:
+            #     self.lock.acquire()
+            #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
+            #                              output='주식분봉차트조회', next=0)
+            #     self.lock.release()
+            # except Exception as e:
+            #     print('에러발생', e)
+            #     telegram_massage(f"에러발생 {e}")
+
+            self.lock.acquire()
+            df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
+                                     output='주식분봉차트조회', next=0)
+            self.lock.release()
 
             # print('df 처음', df)
 
@@ -142,19 +150,19 @@ class MinuteDataDownload:
                 # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
-                try:
-                    self.lock.acquire()
-                    df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                            output='주식분봉차트조회', next=0)
-                    self.lock.release()
-                except Exception as e:
-                    print('에러발생', e)
-                    telegram_massage(f"에러발생 {e}")
-
-                # self.lock.acquire()
-                # df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                #                         output='주식분봉차트조회', next=2)
-                # self.lock.release()
+                # try:
+                #     self.lock.acquire()
+                #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
+                #                             output='주식분봉차트조회', next=0)
+                #     self.lock.release()
+                # except Exception as e:
+                #     print('에러발생', e)
+                #     telegram_massage(f"에러발생 {e}")
+                #
+                self.lock.acquire()
+                df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
+                                        output='주식분봉차트조회', next=2)
+                self.lock.release()
 
                 # column 숫자로 변환
                 int_column = ['현재가', '시가', '고가', '저가', '거래량']
@@ -473,7 +481,7 @@ if __name__ == '__main__':
     lock = Lock()
 
     # Query process start
-    Process(target=Query, args=(queryQ, lock), daemon=True).start()
+    Process(target=Query, args=(queryQ, lock)).start()
 
     # DayDataDownload process-1 start
     # 자동로그인 파일삭제
@@ -483,7 +491,7 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    Process(target=MinuteDataDownload, args=('01', queryQ, lock), daemon=True).start()
+    Process(target=MinuteDataDownload, args=('01', queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
@@ -505,7 +513,7 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    Process(target=MinuteDataDownload, args=('02', queryQ, lock), daemon=True).start()
+    Process(target=MinuteDataDownload, args=('02', queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
@@ -525,7 +533,7 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    Process(target=MinuteDataDownload, args=('03', queryQ, lock), daemon=True).start()
+    Process(target=MinuteDataDownload, args=('03', queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
@@ -545,7 +553,7 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    Process(target=MinuteDataDownload, args=('04', queryQ, lock), daemon=True).start()
+    Process(target=MinuteDataDownload, args=('04', queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
@@ -557,10 +565,9 @@ if __name__ == '__main__':
     manual_login(4)
     print(' 아이디 및 패스워드 입력 완료\n')
 
-
-'''
+    '''
     # 아래 로직 작동안함.
     while find_window('Open API login') != 0:
         print("open api login 미발견")
         time.sleep(1)
-'''
+    '''
