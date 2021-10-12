@@ -10,14 +10,14 @@ import zipfile
 import sqlite3
 import datetime
 import time
+app = QApplication(sys.argv)
 
 class GetMinuteData:
     def __init__(self, num, category, lock):
-        super().__init__()
-        app = QApplication(sys.argv)
+        print('getminute exe')
         self.num = num
         self.category = category
-
+        self.lock = lock
         self.connected = False  # for login event
         self.received = False  # for tr event
         self.tr_items = None  # tr input/output items
@@ -30,14 +30,13 @@ class GetMinuteData:
         self.start = None
         self.end = None
         self.codes = None
-
         self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")  # PyQt5.QAxContainer 모듈
+        print('p35')
 
         # slot 설정
         self.ocx.OnEventConnect.connect(self._handler_login)
         self.ocx.OnReceiveTrData.connect(self._handler_tr)
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
-
         self.CommConnect()
 
         # 일봉, 분봉, 틱 차트 데이터 수신
@@ -61,13 +60,16 @@ class GetMinuteData:
             elif self.num == '04':
                 self.start = 1200
         else:
+            self.lock.acquire()
             con = sqlite3.connect(db_name)
             cur = con.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            print('fetchall', cur.fetchall())
             last_table = str(cur.fetchall()[-1][0][1:])
             con.close()
-            self.start = self.codes.index(last_table) + 1   # last_table 다음 code부터 수행
+            self.lock.release()
 
+            self.start = self.codes.index(last_table) + 1   # last_table 다음 code부터 수행
         # end_num 설정
         if self.num == '01':
             self.end = 400
@@ -81,7 +83,7 @@ class GetMinuteData:
         print(f"시작번호: {self.start}, 끝번호: {self.end}")
 
         self.get_minute_data(self.codes[self.start: self.end], self.category)
-        app.exec_()
+        # app.exec_()
 
     def get_minute_data(self, codes, category):
         # 전 종목의 분봉 데이터
@@ -93,16 +95,21 @@ class GetMinuteData:
         rq_name = "주식분봉차트조회"
 
         # last_code = None
+
         for i, code in enumerate(codes):
             # dfs = []
             count = 0
-            df = self.block_request(tr_code,
+
+            self.lock.acquire()
+            df = self.block_request('opt10080',
                                     종목코드=code,
                                     # 기준일자=today,
                                     틱범위=1,
                                     수정주가구분=1,
-                                    output=rq_name,
+                                    output='주식분봉차트조회',
                                     next=0)
+            self.lock.release()
+
             df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
             self.save_sqlite3(df, code)
             time.sleep(3.6)
@@ -113,6 +120,8 @@ class GetMinuteData:
                 sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 # time.sleep(0.2)
                 count += 1
+
+                self.lock.acquire()
                 df = self.block_request(tr_code,
                                         종목코드=code,
                                         # 기준일자=today,
@@ -120,12 +129,14 @@ class GetMinuteData:
                                         수정주가구분=1,
                                         output=rq_name,
                                         next=2)
+                self.lock.release()
+
                 df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
                 self.save_sqlite3(df, code)
                 time.sleep(3.6)
 
                 # dfs.append(df)
-                if count == 5:
+                if count == 10:
                     break
             # df = pd.concat(dfs)
             # print('df크기', len(df))
@@ -138,17 +149,18 @@ class GetMinuteData:
         fath = "D:/"
         filename = f'minute_chart{self.num}.db'
         db = fath + filename
+        self.lock.acquire()
         con = sqlite3.connect(db)
         cur = con.cursor()
-        out_name = f"a{code}" if category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
+        out_name = f"a{code}" if self.category == 'kospi' else f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
         query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
                     현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
         cur.execute(query)
         # df.to_sql(out_name, con, if_exists='append', index=False, chunksize=len(df))
         # con.close()
-
         self.insert_bulk_record(con, db, out_name, df)
         con.close()
+        self.lock.release()
 
     def insert_bulk_record(self, con, db_name, table_name, record):
         record_data_list = str(tuple(record.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
@@ -222,6 +234,7 @@ class GetMinuteData:
         :param block: True: 로그인완료까지 블록킹 됨, False: 블록킹 하지 않음
         :return: None
         """
+        print('commconnect')
         self.ocx.dynamicCall("CommConnect()")
         if block:
             while not self.connected:
@@ -380,14 +393,12 @@ class GetMinuteData:
         return enc_data
 
 if __name__ == '__main__':
-    num = sys.argv[1]
-    # num = '01'
-    category = sys.argv[2]
-    # category = 'kosdaq'
+    # num = sys.argv[1]
+    num = '01'
+    # category = sys.argv[2]
+    category = 'kosdaq'
     lock = Lock()
-    # app = QApplication(sys.argv)
-    # p = Process(target=GetMinuteData, args=(num, category, lock), daemon=True)
-    # p.start()
-    # p.join()
-    getdata = GetMinuteData(num, category, lock)
-    # app.exec_()
+    p = Process(target=GetMinuteData, args=(num, category, lock), daemon=True)
+    p.start()
+    # getdata = GetMinuteData(num, category, lock)
+    app.exec_()

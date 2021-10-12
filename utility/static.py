@@ -2,7 +2,7 @@ import datetime
 import time
 
 def now():
-    return  datetime.datetime.now()
+    return datetime.datetime.now()
 
 def strf_time(timetype, std_time=None):
     if std_time is None:

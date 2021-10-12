@@ -2,7 +2,7 @@ import sys
 import os
 import time
 import pythoncom
-from manuallogin import *
+from manuallogin22 import *
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer
 from multiprocessing import Process
@@ -52,6 +52,7 @@ if __name__ == '__main__':
     num = int(sys.argv[1])
     # num = 3
     print(type(num), num)
+
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):

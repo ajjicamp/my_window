@@ -239,6 +239,7 @@ class Query:
             if data != '다운로드완료':
                 data[0].to_sql(data[1], self.con, if_exists='replace', chunksize=1000)
             else:
+                print('download 완료')
                 break
 
 
@@ -258,12 +259,15 @@ if __name__ == '__main__':
     Process(target=DaydataDowwnload, args=(0, queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
+        print("open api login 발견")
         time.sleep(1)
     time.sleep(5)
     manual_login(1)
+    # 아래 로직 작동안함.
     while find_window('Open API login') != 0:
+        print("open api login 미발견")
         time.sleep(1)
-
+    '''
     Process(target=DaydataDowwnload, args=(1, queryQ, lock)).start()
     while find_window('Open API login') == 0:
         time.sleep(1)
@@ -271,7 +275,7 @@ if __name__ == '__main__':
     manual_login(2)
     while find_window('Open API login') != 0:
         time.sleep(1)
-
+    '''
     Process(target=DaydataDowwnload, args=(2, queryQ, lock)).start()
     while find_window('Open API login') == 0:
         time.sleep(1)
@@ -279,7 +283,7 @@ if __name__ == '__main__':
     manual_login(3)
     while find_window('Open API login') != 0:
         time.sleep(1)
-
+    '''
     Process(target=DaydataDowwnload, args=(3, queryQ, lock)).start()
     while find_window('Open API login') == 0:
         time.sleep(1)
@@ -287,3 +291,4 @@ if __name__ == '__main__':
     manual_login(4)
     while find_window('Open API login') != 0:
         time.sleep(1)
+    '''
