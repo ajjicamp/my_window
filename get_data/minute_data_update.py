@@ -18,7 +18,7 @@ from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_minute
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
-# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 app = QApplication(sys.argv)
 
@@ -48,59 +48,17 @@ class MinuteDataDownload:
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
         self.CommConnect()
 
-        # 일봉, 분봉, 틱 차트 데이터 수신
-        # self.kospi = self.GetCodeListByMarket('0')
-        # self.kosdaq = self.GetCodeListByMarket('10')
-
-        self.lock.acquire()
-        self.codes = self.GetCodeListByMarket('10')
-        self.lock.release()
-        print('self.codes', self.codes)
-
-        # if self.category == 'kosdaq':
-        #     self.codes = self.kosdaq
-        # elif self.category == 'kospi':
-        #     self.codes = self.kospi
-
-        #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
+        # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
         db_name = f"E:\minute{self.num}.db"
-        if not os.path.isfile(db_name):
-            print('db가 존재하지 않습니다')
-            if self.num == '01':
-                self.start = 0
-            elif self.num == '02':
-                self.start = 400
-            elif self.num == '03':
-                self.start = 800
-            elif self.num == '04':
-                self.start = 1200
-        else:
-            print('db가 존재합니다.')
-            # self.lock.acquire()
-            con = sqlite3.connect(db_name)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-            low_data = cur.fetchall()
-            # print('fetchall', low_data, '길이:', len(low_data), type(low_data))
-            if len(low_data) == 0:
-                self.start = 0
-            else:
-                last_table = str(low_data[-1][0][1:])
-                self.start = self.codes.index(last_table)  # last_table 다시 수행
-            con.close()
 
-        # end_num 설정
-        if self.num == '01':
-            self.end = 400
-        elif self.num == '02':
-            self.end = 800
-        elif self.num == '03':
-            self.end = 1200
-        elif self.num == '04':
-            self.end = len(self.codes)
+        con = sqlite3.connect(db_name)
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        low_data = cur.fetchall()
 
-        print(f"시작번호: {self.start}, 끝번호: {self.end}")
-        codes = self.codes[self.start: self.end]
+        codes = [data[0][1:]  for data in low_data]
+        con.close()
+
         self.minute_data_download(codes, db_name)
 
     def minute_data_download(self, codes, db_name):
@@ -110,21 +68,10 @@ class MinuteDataDownload:
             time.sleep(3.6)
             # dfs = []
             count = 0
-            # try:
-            #     self.lock.acquire()
-            #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-            #                              output='주식분봉차트조회', next=0)
-            #     self.lock.release()
-            # except Exception as e:
-            #     print('에러발생', e)
-            #     telegram_massage(f"에러발생 {e}")
-
             self.lock.acquire()
             df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
                                      output='주식분봉차트조회', next=0)
             self.lock.release()
-
-            # print('df 처음', df)
 
             # column 숫자로 변환
             int_column = ['현재가', '시가', '고가', '저가', '거래량']
@@ -139,26 +86,13 @@ class MinuteDataDownload:
                   f'[{self.start + i + 1}/{self.end}] --{count}')
 
             '''
-            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            self.save_sqlite3(df, code)
-            time.sleep(3.6)
-            '''
-
+            # 업데이트할 때는 연속조회 불필요
             # dfs.append(df)
             while self.tr_remained == True:
                 time.sleep(3.6)
                 # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
-                # try:
-                #     self.lock.acquire()
-                #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                #                             output='주식분봉차트조회', next=0)
-                #     self.lock.release()
-                # except Exception as e:
-                #     print('에러발생', e)
-                #     telegram_massage(f"에러발생 {e}")
-                #
                 self.lock.acquire()
                 df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
                                         output='주식분봉차트조회', next=2)
@@ -173,10 +107,12 @@ class MinuteDataDownload:
                 self.queryQ.put([df, code, db_name])
                 print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
                       f'[{self.start + i + 1}/{self.end}] --{count}')
+            '''
 
                 # dfs.append(df)
                 # if count == 10:
                 #     break
+
         self.queryQ.put(['다운로드완료'])
 
             # df = pd.concat(dfs)
@@ -205,7 +141,7 @@ class MinuteDataDownload:
             self.condition_loaded = True
 
     def _handler_tr(self, screen, rqname, trcode, record, next):
-        # logging.info(f"OnReceiveTrData {screen} {rqname} {trcode} {record} {next}")
+        logging.info(f"OnReceiveTrData {screen} {rqname} {trcode} {record} {next}")
         try:
             record = None
             items = None
