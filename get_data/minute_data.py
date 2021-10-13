@@ -443,6 +443,7 @@ class Query:
         query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
                     현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer)".format(out_name)
         cur.execute(query)
+
         record_data_list = str(tuple(df.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
         if record_data_list[-1] == ',':
             record_data_list = record_data_list[:-1]

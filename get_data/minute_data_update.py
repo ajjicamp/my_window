@@ -49,16 +49,27 @@ class MinuteDataDownload:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        db_name = f"E:\minute{self.num}.db"
+        db_name = f"D:/minute{self.num}.db"
 
         con = sqlite3.connect(db_name)
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
         low_data = cur.fetchall()
 
-        codes = [data[0][1:]  for data in low_data]
+        codes = [data[0][1:] for data in low_data]
         con.close()
 
+        if self.num == '01':
+            self.start = 351
+        if self.num == '02':
+            self.start = 338
+        if self.num == '03':
+            self.start = 330
+        if self.num == '04':
+            self.start = len(codes)
+
+        self.end = len(codes)
+        codes = codes[self.start: self.end]
         self.minute_data_download(codes, db_name)
 
     def minute_data_download(self, codes, db_name):
@@ -113,7 +124,7 @@ class MinuteDataDownload:
                 # if count == 10:
                 #     break
 
-        self.queryQ.put(['다운로드완료'])
+        self.queryQ.put('다운로드완료')
 
             # df = pd.concat(dfs)
             # print('df크기', len(df))
@@ -361,7 +372,7 @@ class Query:
             if data != '다운로드완료':
                 self.save_sqlite3(data[0], data[1], data[2])
             else:
-                print(f'{data[1]}process 다운로드완료')
+                print(f'process 다운로드완료')
 
     def save_sqlite3(self, df, code, db_name):
         # print('df크기', len(df))

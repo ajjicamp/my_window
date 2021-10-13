@@ -213,7 +213,7 @@ class Worker:
     #######################
 
     def _handler_login(self, err_code):
-        logging.info(f"hander login {err_code}")
+        # logging.info(f"hander login {err_code}")
         if err_code == 0:
             self.connected = True
 
