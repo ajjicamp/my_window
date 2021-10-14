@@ -49,11 +49,9 @@ class MinuteDataDownload:
         self.CommConnect()
 
         # 일봉, 분봉, 틱 차트 데이터 수신
-        # self.kospi = self.GetCodeListByMarket('0')
-        # self.kosdaq = self.GetCodeListByMarket('10')
-
         self.lock.acquire()
-        self.codes = self.GetCodeListByMarket('10')
+        # self.codes = self.GetCodeListByMarket('10')
+        self.codes = self.GetCodeListByMarket('0')
         self.lock.release()
         print('self.codes', self.codes)
 
@@ -63,7 +61,7 @@ class MinuteDataDownload:
         #     self.codes = self.kospi
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"E:\minute{self.num}.db"
+        db_name = f"D:/a_minute{self.num}.db"
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
             if self.num == '01':
@@ -110,14 +108,6 @@ class MinuteDataDownload:
             time.sleep(3.6)
             # dfs = []
             count = 0
-            # try:
-            #     self.lock.acquire()
-            #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-            #                              output='주식분봉차트조회', next=0)
-            #     self.lock.release()
-            # except Exception as e:
-            #     print('에러발생', e)
-            #     telegram_massage(f"에러발생 {e}")
 
             self.lock.acquire()
             df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
@@ -425,7 +415,7 @@ class Query:
             if data != '다운로드완료':
                 self.save_sqlite3(data[0], data[1], data[2])
             else:
-                print(f'{data[1]}process 다운로드완료')
+                print(f'한개 process 다운로드완료')
 
     def save_sqlite3(self, df, code, db_name):
         # print('df크기', len(df))
@@ -547,7 +537,6 @@ if __name__ == '__main__':
     manual_login(3)
     print(' 아이디 및 패스워드 입력 완료\n')
 
-    '''
     time.sleep(30)
     # DayDataDownload process-4 start
     login_info = f'{openapi_path}/system/Autologin.dat'
@@ -568,10 +557,3 @@ if __name__ == '__main__':
     manual_login(4)
     # manual_login(2)
     print(' 아이디 및 패스워드 입력 완료\n')
-    '''
-    '''
-    # 아래 로직 작동안함.
-    while find_window('Open API login') != 0:
-        print("open api login 미발견")
-        time.sleep(1)
-    '''
