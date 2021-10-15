@@ -1,3 +1,6 @@
+import sqlite3
+import
+
 import os
 import sys
 from multiprocessing import Process, Queue, Lock
@@ -12,11 +15,13 @@ import sqlite3
 import datetime
 import time
 import logging
+
 # from telegram_test import *
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_minute
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
+
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
 
@@ -87,7 +92,7 @@ class MinuteDataDownload:
             count = 0
             self.lock.acquire()
             df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                     output='주식분봉차트조회', next=0)
+                                    output='주식분봉차트조회', next=0)
             self.lock.release()
 
             # column 숫자로 변환
@@ -100,7 +105,7 @@ class MinuteDataDownload:
             # print('df', df)
             self.queryQ.put([df, code, db_name])
             print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
-                  f'[{self.start + i + 1 }/{self.end} --{count}]')
+                  f'[{self.start + i + 1}/{self.end} --{count}]')
 
             '''
             # 업데이트할 때는 연속조회 불필요
@@ -128,10 +133,10 @@ class MinuteDataDownload:
 
         self.queryQ.put('다운로드완료')
 
-            # df = pd.concat(dfs)
-            # print('df크기', len(df))
-            # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            # self.save_sqlite3(df, code)
+        # df = pd.concat(dfs)
+        # print('df크기', len(df))
+        # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
+        # self.save_sqlite3(df, code)
 
     # ------------------------
     # Kiwoom _handler [SLOT]
@@ -192,6 +197,7 @@ class MinuteDataDownload:
 
     def _handler_msg(self, screen, rqname, trcode, msg):
         logging.info(f"OnReceiveMsg {screen} {rqname} {trcode} {msg}")
+
     # end---------------------------------------------------------------
 
     def CommConnect(self, block=True):
@@ -206,7 +212,6 @@ class MinuteDataDownload:
             while not self.connected:
                 pythoncom.PumpWaitingMessages()
 
-
     def CommRqData(self, rqname, trcode, next, screen):
         """
         TR을 서버로 송신합니다.
@@ -217,7 +222,6 @@ class MinuteDataDownload:
         :return: None
         """
         self.ocx.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, trcode, next, screen)
-
 
     def GetLoginInfo(self, tag):
         """
@@ -262,7 +266,8 @@ class MinuteDataDownload:
         :param screen: 화면번호
         :return:
         """
-        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next, code_count,
+        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next,
+                                   code_count,
                                    type, rqname, screen);
         return ret
 
@@ -357,6 +362,7 @@ class MinuteDataDownload:
             fields = {record: field_name}
             enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
         return enc_data
+
 
 class Query:
     def __init__(self, queryQQ, lock):
