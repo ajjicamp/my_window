@@ -26,7 +26,6 @@ class MinuteDataDownload:
     def __init__(self, num, queryQ, lock):
         self.num = num
         self.queryQ = queryQ
-        # self.category = category
         self.lock = lock
         self.connected = False  # for login event
         self.received = False  # for tr event
@@ -36,7 +35,6 @@ class MinuteDataDownload:
 
         self.gubun = None
         self.codes = None
-        # self.category = None
         self.start = None
         self.end = None
         self.codes = None
@@ -48,17 +46,14 @@ class MinuteDataDownload:
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
         self.CommConnect()
 
-        # 일봉, 분봉, 틱 차트 데이터 수신
-        # self.kospi = self.GetCodeListByMarket('0')
-        # self.kosdaq = self.GetCodeListByMarket('10')
-
         self.lock.acquire()
-        self.codes = self.GetCodeListByMarket('0')
+        # self.codes = self.GetCodeListByMarket('0') # kospi
+        self.codes = self.GetCodeListByMarket('10')  # kosdaq
         self.lock.release()
         print('self.codes', self.codes)
 
-        #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"D:/day{self.num}.db"
+        #  맨 처음이면 self.start = 0 아니면 직전 받은 code 다음부터 수행
+        db_name = f"D:/b_day{self.num}.db"
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
             if self.num == '01':
@@ -71,12 +66,10 @@ class MinuteDataDownload:
                 self.start = 1200
         else:
             print('db가 존재합니다.')
-            # self.lock.acquire()
             con = sqlite3.connect(db_name)
             cur = con.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
             low_data = cur.fetchall()
-            # print('fetchall', low_data, '길이:', len(low_data), type(low_data))
             if len(low_data) == 0:
                 self.start = 0
             else:
@@ -112,7 +105,6 @@ class MinuteDataDownload:
             self.lock.release()
 
             # print('df 처음', df)
-            # column 숫자로 변환
             int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df[int_column] = df[int_column].replace('', 0)
             df[int_column] = df[int_column].astype(int).abs()
@@ -234,7 +226,6 @@ class MinuteDataDownload:
             while not self.connected:
                 pythoncom.PumpWaitingMessages()
 
-
     def CommRqData(self, rqname, trcode, next, screen):
         """
         TR을 서버로 송신합니다.
@@ -245,7 +236,6 @@ class MinuteDataDownload:
         :return: None
         """
         self.ocx.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, trcode, next, screen)
-
 
     def GetLoginInfo(self, tag):
         """
@@ -402,7 +392,7 @@ class Query:
             if data != '다운로드완료':
                 self.save_sqlite3(data[0], data[1], data[2])
             else:
-                print(f'{data[1]}process 다운로드완료')
+                print('한개 process 다운로드완료')
 
     def save_sqlite3(self, df, code, db_name):
         # print('df크기', len(df))
@@ -469,20 +459,15 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
     Process(target=MinuteDataDownload, args=('01', queryQ, lock)).start()
-
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
-
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
-
     manual_login(1)
     print(' 아이디 및 패스워드 입력 완료\n')
 
-    # 여기서 로그인 완료될때 까지 어떻게 기다릴 것인가, 일단 1분간 기다린다.
     time.sleep(30)
 
     # DayDataDownload process-2 start
@@ -491,56 +476,45 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
     Process(target=MinuteDataDownload, args=('02', queryQ, lock)).start()
-
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
-
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
-
     manual_login(2)
     print(' 아이디 및 패스워드 입력 완료\n')
 
     time.sleep(30)
+
     # DayDataDownload process-3 start
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
     Process(target=MinuteDataDownload, args=('03', queryQ, lock)).start()
-
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
-
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
-
     manual_login(3)
     print(' 아이디 및 패스워드 입력 완료\n')
 
     time.sleep(30)
+
     # DayDataDownload process-4 start
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
     Process(target=MinuteDataDownload, args=('04', queryQ, lock)).start()
-
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
-
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
-
     manual_login(4)
-    # manual_login(2)
     print(' 아이디 및 패스워드 입력 완료\n')

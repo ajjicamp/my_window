@@ -1,6 +1,3 @@
-import sqlite3
-import
-
 import os
 import sys
 from multiprocessing import Process, Queue, Lock
@@ -27,11 +24,10 @@ from utility.static import strf_time, now
 
 app = QApplication(sys.argv)
 
-class MinuteDataDownload:
-    def __init__(self, num, queryQ, lock):
-        self.num = num
+class MarketJisuDownload:
+    def __init__(self, queryQ, lock):
+        # self.db_name = 'D:/kospi_jisu.db'
         self.queryQ = queryQ
-        # self.category = category
         self.lock = lock
         self.connected = False  # for login event
         self.received = False  # for tr event
@@ -41,7 +37,6 @@ class MinuteDataDownload:
 
         self.gubun = None
         self.codes = None
-        # self.category = None
         self.start = None
         self.end = None
         self.codes = None
@@ -54,89 +49,54 @@ class MinuteDataDownload:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        db_name = f"D:/minute{self.num}.db"
+        db_name = "D:/db/market_jisu.db"
+        self.marketjisu_download(db_name, "kospi")
+        self.marketjisu_download(db_name, "kosdaq")
 
-        con = sqlite3.connect(db_name)
-        cur = con.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-        low_data = cur.fetchall()
+    def marketjisu_download(self, db_name, gubun):
+        today = datetime.datetime.now().strftime("%Y%m%d")
+        time.sleep(3.6)
+        count = 0
+        b_code = None
+        if gubun == 'kospi':
+            b_code = '001'
+        elif gubun == 'kosdaq':
+            b_code = '101'
 
-        codes = [data[0][1:] for data in low_data]
-        print('크기', len(codes))
-        con.close()
+        self.lock.acquire()
+        df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
+                                output='업종일봉조회', next=0)
+        self.lock.release()
 
-        # --------------------------------------------------
-        # start num 수동으로 기입
-        # --------------------------------------------------
-        if self.num == '01':
-            self.start = len(codes)
-        if self.num == '02':
-            self.start = 387
-        if self.num == '03':
-            self.start = 380
-        if self.num == '04':
-            self.start = len(codes)
+        # column 숫자로 변환
+        int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
+        df[int_column] = df[int_column].replace('', 0)
+        df[int_column] = df[int_column].astype(int).abs()
 
-        # 여기서 self.end는 각 프로세서별 codes길이가 다르므로 자동 설정됨.
-        self.end = len(codes)
+        columns = ['일자', '현재가', '시가', '고가', '저가', '거래량', '거래대금']
+        df = df[columns].copy()
+        # df = df[::-1]
+        # print('df', df)
+        self.queryQ.put([df, db_name, gubun])
 
-        codes = codes[self.start: self.end]
-        self.minute_data_download(codes, db_name)
-
-    def minute_data_download(self, codes, db_name):
-        # print('minute_data_download start')
-
-        for i, code in enumerate(codes):
+        while self.tr_remained == True:
             time.sleep(3.6)
-            # dfs = []
-            count = 0
+            count += 1
             self.lock.acquire()
-            df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                    output='주식분봉차트조회', next=0)
+            df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
+                                    output='업종일봉조회', next=2)
             self.lock.release()
 
             # column 숫자로 변환
-            int_column = ['현재가', '시가', '고가', '저가', '거래량']
+            int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df[int_column] = df[int_column].replace('', 0)
             df[int_column] = df[int_column].astype(int).abs()
-            columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
+
+            columns = ['일자', '현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df = df[columns].copy()
-            # df = df[::-1]
-            # print('df', df)
-            self.queryQ.put([df, code, db_name])
-            print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
-                  f'[{self.start + i + 1}/{self.end} --{count}]')
-
-            '''
-            # 업데이트할 때는 연속조회 불필요
-            # dfs.append(df)
-            while self.tr_remained == True:
-                time.sleep(3.6)
-                # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
-                count += 1
-
-                self.lock.acquire()
-                df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                        output='주식분봉차트조회', next=2)
-                self.lock.release()
-
-                # column 숫자로 변환
-                int_column = ['현재가', '시가', '고가', '저가', '거래량']
-                df[int_column] = df[int_column].astype(int).abs()
-                columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
-                df = df[columns].copy()
-                # df = df[::-1]
-                self.queryQ.put([df, code, db_name])
-                print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
-                      f'[{self.start + i + 1}/{self.end}] --{count}')
-            '''
+            self.queryQ.put([df, db_name, gubun])
 
         self.queryQ.put('다운로드완료')
-
-        # df = pd.concat(dfs)
-        # print('df크기', len(df))
-        # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-        # self.save_sqlite3(df, code)
 
     # ------------------------
     # Kiwoom _handler [SLOT]
@@ -146,6 +106,8 @@ class MinuteDataDownload:
         logging.info(f"hander login {err_code}")
         if err_code == 0:
             self.connected = True
+        '''
+        # 본서버 접속할때 계좌비밀번호 입력처리하는 코드.
         if self.num == '02' or self.num == '04':
             self.gubun = 1 if self.num == '02' else 2
             # print("여기 189까지 왔음.")
@@ -153,7 +115,7 @@ class MinuteDataDownload:
             self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
             print(' 자동 로그인 설정 완료\n')
             print(' 자동 로그인 설정용 프로세스 종료 중 ...')
-
+        '''
     def _handler_condition_load(self, ret, msg):
         if ret == 1:
             self.condition_loaded = True
@@ -368,41 +330,28 @@ class Query:
     def __init__(self, queryQQ, lock):
         self.queryQ = queryQQ
         self.lock = lock
-        # self.con = sqlite3.connect(db_minute)
         self.Start()
-
-    # def __del__(self):
-    #     self.con.close()
 
     def Start(self):
         while True:
-            data = self.queryQ.get()  # data = [df, code, db_name]
+            data = self.queryQ.get()  # data = [df, db_name, gubun]
             print('data', data)
             if data != '다운로드완료':
                 self.save_sqlite3(data[0], data[1], data[2])
             else:
                 print(f'한개 process 다운로드완료')
 
-    def save_sqlite3(self, df, code, db_name):
-        # print('df크기', len(df))
-        # print('db_name', db_name)
-        # fath = "D:/"
-        # filename = f'minute{self.num}.db'
-        # db = fath + filename
-
-        # self.lock.acquire()
+    def save_sqlite3(self, df, db_name, table_name):
         con = sqlite3.connect(db_name)
         cur = con.cursor()
-        out_name = f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-        # query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
-        #             현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
-        query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
-                    현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer)".format(out_name)
+        query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, \
+                    현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer, \
+                    거래대금 integer)".format(table_name)
         cur.execute(query)
         record_data_list = str(tuple(df.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
         if record_data_list[-1] == ',':
             record_data_list = record_data_list[:-1]
-        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" % (out_name, record_data_list)
+        sql_syntax = "INSERT OR IGNORE INTO %s VALUES %s" % (table_name, record_data_list)
         cur.execute(sql_syntax)
         con.commit()
         con.close()
@@ -442,7 +391,7 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    Process(target=MinuteDataDownload, args=('01', queryQ, lock)).start()
+    Process(target=MarketJisuDownload, args=(queryQ, lock)).start()
 
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
@@ -454,66 +403,5 @@ if __name__ == '__main__':
     manual_login(1)
     print(' 아이디 및 패스워드 입력 완료\n')
 
-    # 여기서 로그인 완료될때 까지 어떻게 기다릴 것인가, 일단 1분간 기다린다.
-    time.sleep(30)
 
-    # DayDataDownload process-2 start
-    login_info = f'{openapi_path}/system/Autologin.dat'
-    print('login_info', login_info)
-    if os.path.isfile(login_info):
-        os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
-    Process(target=MinuteDataDownload, args=('02', queryQ, lock)).start()
-
-    while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
-        time.sleep(1)
-
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
-    time.sleep(5)
-
-    manual_login(2)
-    print(' 아이디 및 패스워드 입력 완료\n')
-
-    time.sleep(30)
-    # DayDataDownload process-3 start
-    login_info = f'{openapi_path}/system/Autologin.dat'
-    print('login_info', login_info)
-    if os.path.isfile(login_info):
-        os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
-    Process(target=MinuteDataDownload, args=('03', queryQ, lock)).start()
-
-    while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
-        time.sleep(1)
-
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
-    time.sleep(5)
-
-    manual_login(3)
-    print(' 아이디 및 패스워드 입력 완료\n')
-
-    time.sleep(30)
-    # DayDataDownload process-4 start
-    login_info = f'{openapi_path}/system/Autologin.dat'
-    print('login_info', login_info)
-    if os.path.isfile(login_info):
-        os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
-
-    Process(target=MinuteDataDownload, args=('04', queryQ, lock)).start()
-
-    while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
-        time.sleep(1)
-
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
-    time.sleep(5)
-
-    manual_login(4)
-    # manual_login(2)
-    print(' 아이디 및 패스워드 입력 완료\n')
 
