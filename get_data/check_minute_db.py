@@ -2,13 +2,17 @@ import sqlite3
 import datetime
 import time
 
-con = sqlite3.connect("D:/minute01.db")
+con = sqlite3.connect("D:/a_minute04.db")
 cur = con.cursor()
 cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
 namelist = cur.fetchall()
-name = namelist[100]
-print('table name', name)
 
+print(len(namelist))
+
+# name = namelist[100]
+# print('table name', name)
+
+'''
 name = 'b900270'
 cur.execute("SELECT 체결시간 FROM %s" % name)
 chegyeol_time = cur.fetchall()
@@ -40,4 +44,4 @@ print('총시간(분)', end - start)
 # print('총시간차', period)
 # print('봉개수', period/3)
 
-
+'''

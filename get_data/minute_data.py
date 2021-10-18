@@ -1,3 +1,11 @@
+'''
+# 분봉차트 받는 모듈; multiporcessing을 코스피, 코스닥을 각 4개프로세서로 받는다.
+db_name은 코스피는 f'a_minute{프로세서번호}}.db' 코스닥은 f'b_minute{프로세서번호}}.db'로 한다.
+table name은 코스피는 f'a{코드번호}', 코스닥은 f'b{코드번호}로 한다.
+다운로드 분량이 많아 어차피 코스피, 코스닥을 한꺼번에 받을 수는 없으므로 코스피, 코스닥 구분은 조건절 없이 코딩을 직접 고쳐서 쓴다.
+--------
+참고) 매일 update할 때는 연속조회를 제외하고 받아서 update한다.(체결시간이 primary key로 정해져 있으므로 중복입력은 자동 걸러진다.
+'''
 import os
 import sys
 from multiprocessing import Process, Queue, Lock
@@ -21,6 +29,9 @@ from utility.static import strf_time, now
 # logging.basicConfig(level=logging.INFO)
 
 app = QApplication(sys.argv)
+
+upjong = 'kospi'
+# upjong = 'kosdaq'
 
 class MinuteDataDownload:
     def __init__(self, num, queryQ, lock):
@@ -55,13 +66,9 @@ class MinuteDataDownload:
         self.lock.release()
         print('self.codes', self.codes)
 
-        # if self.category == 'kosdaq':
-        #     self.codes = self.kosdaq
-        # elif self.category == 'kospi':
-        #     self.codes = self.kospi
-
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
         db_name = f"D:/a_minute{self.num}.db"
+
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
             if self.num == '01':
@@ -106,15 +113,12 @@ class MinuteDataDownload:
 
         for i, code in enumerate(codes):
             time.sleep(3.6)
-            # dfs = []
             count = 0
 
             self.lock.acquire()
             df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
                                      output='주식분봉차트조회', next=0)
             self.lock.release()
-
-            # print('df 처음', df)
 
             # column 숫자로 변환
             int_column = ['현재가', '시가', '고가', '저가', '거래량']
@@ -123,32 +127,15 @@ class MinuteDataDownload:
             columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
             df = df[columns].copy()
             # df = df[::-1]
-            # print('df', df)
             self.queryQ.put([df, code, db_name])
             print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
                   f'[{self.start + i + 1}/{self.end}] --{count}')
 
-            '''
-            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            self.save_sqlite3(df, code)
-            time.sleep(3.6)
-            '''
-
-            # dfs.append(df)
             while self.tr_remained == True:
                 time.sleep(3.6)
                 # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
-                # try:
-                #     self.lock.acquire()
-                #     df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                #                             output='주식분봉차트조회', next=0)
-                #     self.lock.release()
-                # except Exception as e:
-                #     print('에러발생', e)
-                #     telegram_massage(f"에러발생 {e}")
-                #
                 self.lock.acquire()
                 df = self.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
                                         output='주식분봉차트조회', next=2)
@@ -159,20 +146,11 @@ class MinuteDataDownload:
                 df[int_column] = df[int_column].astype(int).abs()
                 columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
                 df = df[columns].copy()
-                # df = df[::-1]
                 self.queryQ.put([df, code, db_name])
                 print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
                       f'[{self.start + i + 1}/{self.end}] --{count}')
 
-                # dfs.append(df)
-                # if count == 10:
-                #     break
         self.queryQ.put('다운로드완료')
-
-            # df = pd.concat(dfs)
-            # print('df크기', len(df))
-            # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            # self.save_sqlite3(df, code)
 
     # ------------------------
     # Kiwoom _handler [SLOT]
@@ -184,7 +162,6 @@ class MinuteDataDownload:
             self.connected = True
         if self.num == '02' or self.num == '04':
             self.gubun = 1 if self.num == '02' else 2
-            # print("여기 189까지 왔음.")
             QTimer.singleShot(5000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
             self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
             print(' 자동 로그인 설정 완료\n')
