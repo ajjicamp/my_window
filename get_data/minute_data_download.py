@@ -183,7 +183,7 @@ class MinuteDataDownload:
         if err_code == 0:
             self.connected = True
         if self.num == '02' or self.num == '04':
-            self.gubun = 1 if self.num == '02' else 2
+            self.gubun = 1 if self.num == '02' else 2  # gubun은 계좌, 계좌비밀번호 입력목적
             # print("여기 189까지 왔음.")
             QTimer.singleShot(5000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
             self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')

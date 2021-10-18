@@ -1,3 +1,7 @@
+'''
+일봉차트데이트 받는 모듈
+코스피, 코스닥 구분하여 4개의 멀리프로세서로 다운로드
+'''
 import os
 import sys
 from multiprocessing import Process, Queue, Lock
@@ -14,15 +18,15 @@ import time
 import logging
 # from telegram_test import *
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_minute
+from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_Day
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
-
 app = QApplication(sys.argv)
 
-class MinuteDataDownload:
+
+class DayDataDownload:
     def __init__(self, num, queryQ, lock):
         self.num = num
         self.queryQ = queryQ
@@ -380,7 +384,6 @@ class Query:
     def __init__(self, queryQQ, lock):
         self.queryQ = queryQQ
         self.lock = lock
-        # self.con = sqlite3.connect(db_minute)
         self.Start()
 
     # def __del__(self):
@@ -395,12 +398,6 @@ class Query:
                 print('한개 process 다운로드완료')
 
     def save_sqlite3(self, df, code, db_name):
-        # print('df크기', len(df))
-        # print('db_name', db_name)
-        # fath = "D:/"
-        # filename = f'minute{self.num}.db'
-        # db = fath + filename
-
         # self.lock.acquire()
         con = sqlite3.connect(db_name)
         cur = con.cursor()
@@ -459,7 +456,7 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-    Process(target=MinuteDataDownload, args=('01', queryQ, lock)).start()
+    Process(target=DayDataDownload, args=('01', queryQ, lock)).start()
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
@@ -476,7 +473,7 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-    Process(target=MinuteDataDownload, args=('02', queryQ, lock)).start()
+    Process(target=DayDataDownload, args=('02', queryQ, lock)).start()
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
@@ -493,7 +490,7 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-    Process(target=MinuteDataDownload, args=('03', queryQ, lock)).start()
+    Process(target=DayDataDownload, args=('03', queryQ, lock)).start()
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
@@ -510,7 +507,7 @@ if __name__ == '__main__':
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
-    Process(target=MinuteDataDownload, args=('04', queryQ, lock)).start()
+    Process(target=DayDataDownload, args=('04', queryQ, lock)).start()
     while find_window('Open API login') == 0:
         print(' 로그인창 열림 대기 중 ...\n')
         time.sleep(1)
