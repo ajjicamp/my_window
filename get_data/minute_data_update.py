@@ -49,7 +49,8 @@ class MinuteDataDownload:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        db_name = f"D:/minute{self.num}.db"
+        db_name = f"D:/a_minute{self.num}.db"
+        # db_name = f"D:/b_minute{self.num}.db"
 
         con = sqlite3.connect(db_name)
         cur = con.cursor()
@@ -60,17 +61,18 @@ class MinuteDataDownload:
         print('크기', len(codes))
         con.close()
 
-        # --------------------------------------------------
-        # start num 수동으로 기입
-        # --------------------------------------------------
+        # ----------------------------------------------------------------
+        # start num ; 디폴트는 0, 중간에 멈췄을 경우는 멈춘 지점으로 직접 수정
+        # ----------------------------------------------------------------
+
         if self.num == '01':
-            self.start = len(codes)
+            self.start = 0
         if self.num == '02':
-            self.start = 387
+            self.start = 0
         if self.num == '03':
-            self.start = 380
+            self.start = 0
         if self.num == '04':
-            self.start = len(codes)
+            self.start = 0
 
         # 여기서 self.end는 각 프로세서별 codes길이가 다르므로 자동 설정됨.
         self.end = len(codes)
@@ -103,7 +105,7 @@ class MinuteDataDownload:
                   f'[{self.start + i + 1 }/{self.end} --{count}]')
 
             '''
-            # 업데이트할 때는 연속조회 불필요
+            # 업데이트할 때는 연속조회 불필요, 만약 업데이트가 많이 밀렸을 경우에는 그만큼 반복
             # dfs.append(df)
             while self.tr_remained == True:
                 time.sleep(3.6)
@@ -127,11 +129,6 @@ class MinuteDataDownload:
             '''
 
         self.queryQ.put('다운로드완료')
-
-            # df = pd.concat(dfs)
-            # print('df크기', len(df))
-            # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            # self.save_sqlite3(df, code)
 
     # ------------------------
     # Kiwoom _handler [SLOT]
@@ -449,7 +446,7 @@ if __name__ == '__main__':
     print(' 아이디 및 패스워드 입력 완료\n')
 
     # 여기서 로그인 완료될때 까지 어떻게 기다릴 것인가, 일단 1분간 기다린다.
-    time.sleep(30)
+    time.sleep(50)
 
     # DayDataDownload process-2 start
     login_info = f'{openapi_path}/system/Autologin.dat'
