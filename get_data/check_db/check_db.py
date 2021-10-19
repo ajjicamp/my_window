@@ -1,7 +1,7 @@
 import sqlite3
 import datetime
 
-con = sqlite3.connect("D:/day01.db")
+con = sqlite3.connect("D:/db/Candle_day/b_day01.db")
 cur = con.cursor()
 cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
 table = cur.fetchall()

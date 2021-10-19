@@ -2,7 +2,7 @@ import sqlite3
 import datetime
 import time
 
-con = sqlite3.connect("D:/a_minute04.db")
+con = sqlite3.connect("D:/a_minute01.db")
 cur = con.cursor()
 cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
 namelist = cur.fetchall()

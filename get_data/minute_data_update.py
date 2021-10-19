@@ -49,7 +49,8 @@ class MinuteDataDownload:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        db_name = f"D:/minute{self.num}.db"
+        db_name = f"D:/a_minute{self.num}.db"
+        # db_name = f"D:/b_minute{self.num}.db"
 
         con = sqlite3.connect(db_name)
         cur = con.cursor()
@@ -445,7 +446,7 @@ if __name__ == '__main__':
     print(' 아이디 및 패스워드 입력 완료\n')
 
     # 여기서 로그인 완료될때 까지 어떻게 기다릴 것인가, 일단 1분간 기다린다.
-    time.sleep(30)
+    time.sleep(50)
 
     # DayDataDownload process-2 start
     login_info = f'{openapi_path}/system/Autologin.dat'
