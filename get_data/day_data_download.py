@@ -18,7 +18,7 @@ import time
 import logging
 # from telegram_test import *
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import openapi_path, sn_brrq, sn_oper, db_day, db_Day
+from utility.setting import openapi_path
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
@@ -51,13 +51,13 @@ class DayDataDownload:
         self.CommConnect()
 
         self.lock.acquire()
-        # self.codes = self.GetCodeListByMarket('0') # kospi
-        self.codes = self.GetCodeListByMarket('10')  # kosdaq
+        self.codes = self.GetCodeListByMarket('0') # kospi
+        # self.codes = self.GetCodeListByMarket('10')  # kosdaq
         self.lock.release()
         print('self.codes', self.codes)
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code 다음부터 수행
-        db_name = f"D:/b_day{self.num}.db"
+        db_name = f"D:/db/Candle_day/a_day{self.num}.db"
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
             if self.num == '01':
