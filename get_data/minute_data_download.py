@@ -67,7 +67,7 @@ class MinuteDataDownload:
         print('self.codes', self.codes)
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"D:/db/Candle_minute/a_minute{self.num}.db"
+        db_name = f"C:/Users/USER/PycharmProjects/my_window/db/a_minute{self.num}.db"
 
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
@@ -90,7 +90,7 @@ class MinuteDataDownload:
             if len(low_data) == 0:
                 self.start = 0
             else:
-                last_table = str(low_data[-1][0][1:])
+                last_table = str(low_data[-1][0])
                 self.start = self.codes.index(last_table)  # last_table 다시 수행
             con.close()
 
@@ -133,7 +133,7 @@ class MinuteDataDownload:
 
             while self.tr_remained == True:
                 time.sleep(3.6)
-                # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
+                # sys.stdout.write(f'/r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
                 self.lock.acquire()

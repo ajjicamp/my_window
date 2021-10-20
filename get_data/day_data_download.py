@@ -25,6 +25,10 @@ from utility.static import strf_time, now
 # logging.basicConfig(level=logging.INFO)
 app = QApplication(sys.argv)
 
+DESK_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
+USB_PATH_1 = "D:/DB"
+USB_PATH_2 = "E:/DB"
+
 
 class DayDataDownload:
     def __init__(self, num, queryQ, lock):
@@ -50,14 +54,33 @@ class DayDataDownload:
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
         self.CommConnect()
 
+        file_name = f"a_day{self.num}.db"
+        market_num = '0' if file_name[0] == 'a' else '10'
+
+        db_path1 = f'{DESK_PATH}/{file_name}'
+        db_path2 = f'{USB_PATH_1}/{file_name}'
+        db_path3 = f'{USB_PATH_2}/{file_name}'
+
+        db_name = None
+        if os.path.exists(db_path1):
+            db_name = db_path1
+        else:
+            if os.path.exists(db_path2):
+                db_name = db_path2
+            elif os.path.exists(db_path3):
+                db_name = db_path3
+            else:
+                print('db를 찾을 수 없습니다.')
+                input()
+
+        print('db_name', db_name)
+
         self.lock.acquire()
-        self.codes = self.GetCodeListByMarket('0') # kospi
-        # self.codes = self.GetCodeListByMarket('10')  # kosdaq
+        self.codes = self.GetCodeListByMarket(market_num)
         self.lock.release()
         print('self.codes', self.codes)
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code 다음부터 수행
-        db_name = f"D:/db/Candle_day/a_day{self.num}.db"
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
             if self.num == '01':
@@ -77,8 +100,9 @@ class DayDataDownload:
             if len(low_data) == 0:
                 self.start = 0
             else:
-                last_table = str(low_data[-1][0][1:])
+                last_table = str(low_data[-1][0])
                 self.start = self.codes.index(last_table)  # last_table 다시 수행
+                # self.start = 350
             con.close()
 
         # end_num 설정
@@ -93,22 +117,24 @@ class DayDataDownload:
 
         print(f"시작번호: {self.start}, 끝번호: {self.end}")
         codes = self.codes[self.start: self.end]
+        print('다운로드할 종목수:', len(codes))
         self.day_data_download(codes, db_name)
 
     def day_data_download(self, codes, db_name):
-        # print('day_data_download start')
+        print('day_data_download start')
         today = datetime.datetime.now().strftime('%Y%m%d')
         for i, code in enumerate(codes):
             time.sleep(3.6)
             # dfs = []
             count = 0
+            print('code', code)
 
             self.lock.acquire()
-            df = self.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
-                                     output='주식일봉차트조회', next=0)
+            df = self.block_request('opt10081', 종목코드=code, 기준일자=today,
+                                    수정주가구분=1, output='주식일봉차트조회', next=0)
             self.lock.release()
 
-            # print('df 처음', df)
+            print('134', 134)
             int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df[int_column] = df[int_column].replace('', 0)
             df[int_column] = df[int_column].astype(int).abs()
@@ -129,7 +155,7 @@ class DayDataDownload:
             # dfs.append(df)
             while self.tr_remained == True:
                 time.sleep(3.6)
-                # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
+                # sys.stdout.write(f'/r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
                 self.lock.acquire()
@@ -170,7 +196,7 @@ class DayDataDownload:
             # print("여기 189까지 왔음.")
             QTimer.singleShot(5000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
             self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
-            print(' 자동 로그인 설정 완료\n')
+            print(' 자동 로그인 설정 완료/n')
             print(' 자동 로그인 설정용 프로세스 종료 중 ...')
 
     def _handler_condition_load(self, ret, msg):
@@ -359,7 +385,7 @@ class DayDataDownload:
         return liness
 
     def ParseDat(self, trcode, liness):
-        liness = liness.split('\n')
+        liness = liness.split('/n')
         start = [i for i, x in enumerate(liness) if x.startswith('@START')]
         end = [i for i, x in enumerate(liness) if x.startswith('@END')]
         block = zip(start, end)
@@ -402,9 +428,9 @@ class Query:
         con = sqlite3.connect(db_name)
         cur = con.cursor()
         out_name = f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-        # query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+        # query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, /
         #             현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
-        query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, 현재가 integer, " \
+        query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, 현재가 integer," \
                 "시가 integer, 고가 integer, 저가 integer, 거래량 integer, 거래대금 integer)".format(out_name)
         cur.execute(query)
 
@@ -455,32 +481,32 @@ if __name__ == '__main__':
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
+    print('/n 자동 로그인 설정 파일 삭제 완료/n')
     Process(target=DayDataDownload, args=('01', queryQ, lock)).start()
     while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
+        print(' 로그인창 열림 대기 중 .../n')
         time.sleep(1)
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
+    print(' 아이디 및 패스워드 입력 대기 중 .../n')
     time.sleep(5)
     manual_login(1)
-    print(' 아이디 및 패스워드 입력 완료\n')
+    print(' 아이디 및 패스워드 입력 완료/n')
 
+    '''
     time.sleep(30)
-
     # DayDataDownload process-2 start
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
+    print('/n 자동 로그인 설정 파일 삭제 완료/n')
     Process(target=DayDataDownload, args=('02', queryQ, lock)).start()
     while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
+        print(' 로그인창 열림 대기 중 .../n')
         time.sleep(1)
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
+    print(' 아이디 및 패스워드 입력 대기 중 .../n')
     time.sleep(5)
     manual_login(2)
-    print(' 아이디 및 패스워드 입력 완료\n')
+    print(' 아이디 및 패스워드 입력 완료/n')
 
     time.sleep(30)
 
@@ -489,15 +515,15 @@ if __name__ == '__main__':
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
+    print('/n 자동 로그인 설정 파일 삭제 완료/n')
     Process(target=DayDataDownload, args=('03', queryQ, lock)).start()
     while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
+        print(' 로그인창 열림 대기 중 .../n')
         time.sleep(1)
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
+    print(' 아이디 및 패스워드 입력 대기 중 .../n')
     time.sleep(5)
     manual_login(3)
-    print(' 아이디 및 패스워드 입력 완료\n')
+    print(' 아이디 및 패스워드 입력 완료/n')
 
     time.sleep(30)
 
@@ -506,12 +532,13 @@ if __name__ == '__main__':
     print('login_info', login_info)
     if os.path.isfile(login_info):
         os.remove(f'{openapi_path}/system/Autologin.dat')
-    print('\n 자동 로그인 설정 파일 삭제 완료\n')
+    print('/n 자동 로그인 설정 파일 삭제 완료/n')
     Process(target=DayDataDownload, args=('04', queryQ, lock)).start()
     while find_window('Open API login') == 0:
-        print(' 로그인창 열림 대기 중 ...\n')
+        print(' 로그인창 열림 대기 중 .../n')
         time.sleep(1)
-    print(' 아이디 및 패스워드 입력 대기 중 ...\n')
+    print(' 아이디 및 패스워드 입력 대기 중 .../n')
     time.sleep(5)
     manual_login(4)
-    print(' 아이디 및 패스워드 입력 완료\n')
+    print(' 아이디 및 패스워드 입력 완료/n')
+    '''

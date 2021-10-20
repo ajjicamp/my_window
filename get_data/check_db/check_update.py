@@ -1,30 +1,33 @@
-# sqlite3 db 업데이트 후 row숫자 및 각 테이블의 (일자,체결시간) 체크.
+# sqlite3 db 업데이트 후 row 숫자 및 각 테이블의 (일자,체결시간) 체크.
 # 날짜/체결시간 순서대로 빠진것 없는지도 체크,
 import sqlite3
 import pandas as pd
 
-DAY_KOSPI_DB_LIST = ['D:/db/candle_day/a_day01.db',
-                     'D:/db/candle_day/a_day02.db',
-                     'D:/db/candle_day/a_day03.db',
-                     'D:/db/candle_day/a_day04.db',
+
+DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
+
+DAY_KOSPI_DB_LIST = [f'{DB_PATH}/candle_day/a_day01.db',
+                     f'{DB_PATH}/candle_day/a_day02.db',
+                     f'{DB_PATH}/candle_day/a_day03.db',
+                     f'{DB_PATH}/candle_day/a_day04.db',
                      ]
 
-DAY_KOSDAQ_DB_LIST = ['D:/db/candle_day/b_day01.db',
-                      'D:/db/candle_day/b_day02.db',
-                      'D:/db/candle_day/b_day03.db',
-                      'D:/db/candle_day/b_day04.db',
+DAY_KOSDAQ_DB_LIST = [f'{DB_PATH}/candle_day/b_day01.db',
+                      f'{DB_PATH}/candle_day/b_day02.db',
+                      f'{DB_PATH}/candle_day/b_day03.db',
+                      f'{DB_PATH}/candle_day/b_day04.db',
                       ]
 
-MINUTE_KOSPI_DB_LIST = ['D:/db/candle_minute/a_minute01.db',
-                        'D:/db/candle_minute/a_minute02.db',
-                        'D:/db/candle_minute/a_minute03.db',
-                        'D:/db/candle_minute/a_minute04.db',
+MINUTE_KOSPI_DB_LIST = [f'{DB_PATH}/candle_minute/a_minute01.db',
+                        f'{DB_PATH}/candle_minute/a_minute02.db',
+                        f'{DB_PATH}/candle_minute/a_minute03.db',
+                        f'{DB_PATH}/candle_minute/a_minute04.db',
                         ]
 
-MINUTE_KOSDAQ_DB_LIST = ['D:/db/candle_minute/b_minute01.db',
-                         'D:/db/candle_minute/b_minute02.db',
-                         'D:/db/candle_minute/b_minute03.db',
-                         'D:/db/candle_minute/b_minute04.db',
+MINUTE_KOSDAQ_DB_LIST = [f'{DB_PATH}/candle_minute/b_minute01.db',
+                         f'{DB_PATH}/candle_minute/b_minute02.db',
+                         f'{DB_PATH}/candle_minute/b_minute03.db',
+                         f'{DB_PATH}/candle_minute/b_minute04.db',
                          ]
 
 ALL_CODE = DAY_KOSPI_DB_LIST + DAY_KOSDAQ_DB_LIST + MINUTE_KOSPI_DB_LIST + MINUTE_KOSDAQ_DB_LIST
@@ -52,8 +55,10 @@ class CheckDB:
                 cur.execute(f"SELECT {key} FROM {table} ORDER BY {key} desc")
                 data = cur.fetchone()[0]
                 if data != last_value:
-                    # print(table, data)
                     miss_table += 1
+                    if db == 'C:/Users/USER/PycharmProjects/my_window/db/candle_minute/a_minute04.db':
+                        print(table, data)
+                        input()
             print(f'오류table 숫자 {db}: {miss_table}/{len(table_list)}')
 
 
