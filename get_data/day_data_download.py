@@ -2,32 +2,25 @@
 일봉차트데이트 받는 모듈
 코스피, 코스닥 구분하여 4개의 멀리프로세서로 다운로드
 '''
-import os
-import sys
 from multiprocessing import Process, Queue, Lock
-from PyQt5.QAxContainer import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer
-import logging
-import pandas as pd
-import pythoncom
-import zipfile
 import sqlite3
 import datetime
 import time
 import logging
+from kiwoom_download import *
 # from telegram_test import *
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from utility.setting import openapi_path
 from login.manuallogin22 import find_window, manual_login, auto_on
 from utility.static import strf_time, now
-# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+
+logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(level=logging.INFO)
-app = QApplication(sys.argv)
+# app = QApplication(sys.argv)
 
 DESK_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
-USB_PATH_1 = "D:/DB"
-USB_PATH_2 = "E:/DB"
+USB_PATH_1 = "E:/DB"
+USB_PATH_2 = "D:/DB"
 
 
 class DayDataDownload:
@@ -35,24 +28,26 @@ class DayDataDownload:
         self.num = num
         self.queryQ = queryQ
         self.lock = lock
-        self.connected = False  # for login event
-        self.received = False  # for tr event
-        self.tr_items = None  # tr input/output items
-        self.tr_data = None  # tr output data
-        self.tr_record = None
+        # self.connected = False  # for login event
+        # self.received = False  # for tr event
+        # self.tr_items = None  # tr input/output items
+        # self.tr_data = None  # tr output data
+        # self.tr_record = None
 
         self.gubun = None
         self.codes = None
         self.start = None
         self.end = None
         self.codes = None
-        self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")  # PyQt5.QAxContainer 모듈
+
+        self.kiwoom = Kiwoom(self.num)
+        # self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")  # PyQt5.QAxContainer 모듈
 
         # slot 설정
-        self.ocx.OnEventConnect.connect(self._handler_login)
-        self.ocx.OnReceiveTrData.connect(self._handler_tr)
-        self.ocx.OnReceiveMsg.connect(self._handler_msg)
-        self.CommConnect()
+        # self.ocx.OnEventConnect.connect(self._handler_login)
+        # self.ocx.OnReceiveTrData.connect(self._handler_tr)
+        # self.ocx.OnReceiveMsg.connect(self._handler_msg)
+        # self.CommConnect()
 
         file_name = f"a_day{self.num}.db"
         market_num = '0' if file_name[0] == 'a' else '10'
@@ -76,7 +71,8 @@ class DayDataDownload:
         print('db_name', db_name)
 
         self.lock.acquire()
-        self.codes = self.GetCodeListByMarket(market_num)
+        # self.codes = self.GetCodeListByMarket(market_num)
+        self.codes = self.kiwoom.GetCodeListByMarket(market_num)
         self.lock.release()
         print('self.codes', self.codes)
 
@@ -100,7 +96,7 @@ class DayDataDownload:
             if len(low_data) == 0:
                 self.start = 0
             else:
-                last_table = str(low_data[-1][0][1:])
+                last_table = str(low_data[-1][0])
                 self.start = self.codes.index(last_table)  # last_table 다시 수행
                 # self.start = 350
             con.close()
@@ -126,7 +122,9 @@ class DayDataDownload:
             time.sleep(3.6)
             count = 0
             self.lock.acquire()
-            df = self.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
+            # df = self.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
+            #                         output='주식일봉차트조회', next=0)
+            df = self.kiwoom.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
                                     output='주식일봉차트조회', next=0)
             self.lock.release()
             int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
@@ -140,20 +138,15 @@ class DayDataDownload:
             print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
                   f'[{self.start + i + 1}/{self.end}] --{count}')
 
-            '''
-            df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            self.save_sqlite3(df, code)
-            time.sleep(3.6)
-            '''
-
             # dfs.append(df)
-            while self.tr_remained == True:
+            # while self.tr_remained == True:
+            while self.kiwoom.tr_remained == True:
                 time.sleep(3.6)
                 # sys.stdout.write(f'/r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
                 count += 1
 
                 self.lock.acquire()
-                df = self.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
+                df = self.kiwoom.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
                                         output='주식일봉차트조회', next=2)
                 self.lock.release()
 
@@ -169,6 +162,7 @@ class DayDataDownload:
 
         self.queryQ.put('다운로드완료')
 
+    '''
     # ------------------------
     # Kiwoom _handler [SLOT]
     # ------------------------
@@ -333,12 +327,12 @@ class DayDataDownload:
         return data.strip()
 
     def block_request(self, *trcode, **kwargs):
-        '''
+        """
         tr조회함수
         :param args: ex) 'opt10001'
         :param kwargs: 종목코드="005930", output="주식기본정보", next=0
         :return:
-        '''
+        """
         trcode = trcode[0].lower()
         # lines = parser.read_enc(trcode)
         lines = self.ReadEnc(trcode)
@@ -391,6 +385,7 @@ class DayDataDownload:
             fields = {record: field_name}
             enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
         return enc_data
+    '''
 
 class Query:
     def __init__(self, queryQQ, lock):
@@ -398,24 +393,20 @@ class Query:
         self.lock = lock
         self.Start()
 
-    # def __del__(self):
-    #     self.con.close()
-
     def Start(self):
         while True:
             data = self.queryQ.get()  # data = [df, code, db_name]
             if data != '다운로드완료':
                 self.save_sqlite3(data[0], data[1], data[2])
             else:
+                print('현재프로세서값:', os.getpid())
                 print('한개 process 다운로드완료')
 
     def save_sqlite3(self, df, code, db_name):
         # self.lock.acquire()
         con = sqlite3.connect(db_name)
         cur = con.cursor()
-        out_name = f"b{code}"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
-        # query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, /
-        #             현재가 text, 시가 text, 고가 text, 저가 text, 거래량 text)".format(out_name)
+        out_name = f"'{code}'"  # 여기서 b는 구분표시 즉, kospi ; a, kosdaq ; b, 숫자만으로 구성된 name을 피하기위한 수단이기도함.
         query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, 현재가 integer," \
                 "시가 integer, 고가 integer, 저가 integer, 거래량 integer, 거래대금 integer)".format(out_name)
         cur.execute(query)
@@ -430,6 +421,7 @@ class Query:
         # self.lock.release()
         # self.insert_bulk_record(con, db_name, out_name, df)
 
+    '''
     def insert_bulk_record(self, con, db_name, table_name, record):
         # 위 save_sqlite3()함수로 합쳤다
         print('insert_bulk')
@@ -446,13 +438,8 @@ class Query:
         cur.execute(sql_syntax)
         con.commit()
         con.close()
+    '''
 
-        '''
-             data[0].to_sql(data[1], self.con, if_exists='replace', chunksize=1000)
-        else:
-            print('download 완료')
-            break
-        '''
 
 if __name__ == '__main__':
     queryQ = Queue()
@@ -477,7 +464,6 @@ if __name__ == '__main__':
     manual_login(1)
     print(' 아이디 및 패스워드 입력 완료/n')
 
-    '''
     time.sleep(30)
     # DayDataDownload process-2 start
     login_info = f'{openapi_path}/system/Autologin.dat'
@@ -527,4 +513,3 @@ if __name__ == '__main__':
     time.sleep(5)
     manual_login(4)
     print(' 아이디 및 패스워드 입력 완료/n')
-    '''
