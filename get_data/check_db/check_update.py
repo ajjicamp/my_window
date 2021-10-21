@@ -43,6 +43,7 @@ class CheckDB:
         self.check_db(MINUTE_KOSDAQ_DB_LIST, '체결시간', LAST_TIME)
 
     def check_db(self, db_list, key, last_value):
+        print(db_list)
         for db in db_list:
             con = sqlite3.connect(db)
             cur = con.cursor()

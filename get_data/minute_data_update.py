@@ -49,8 +49,8 @@ class MinuteDataUpdate:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        kospi = f"D:/db/Candle_minute/a_minute{self.num}.db"
-        kosdaq = f"D:/db/Candle_minute/b_minute{self.num}.db"
+        kospi = f"D:/db/a_minute{self.num}.db"
+        kosdaq = f"D:/db/b_minute{self.num}.db"
         self.Update(kospi, 'a')
         # self.Update(kosdaq, 'b')
 

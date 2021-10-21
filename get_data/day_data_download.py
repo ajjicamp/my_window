@@ -100,7 +100,7 @@ class DayDataDownload:
             if len(low_data) == 0:
                 self.start = 0
             else:
-                last_table = str(low_data[-1][0])
+                last_table = str(low_data[-1][0][1:])
                 self.start = self.codes.index(last_table)  # last_table 다시 수행
                 # self.start = 350
             con.close()
@@ -117,24 +117,18 @@ class DayDataDownload:
 
         print(f"시작번호: {self.start}, 끝번호: {self.end}")
         codes = self.codes[self.start: self.end]
-        print('다운로드할 종목수:', len(codes))
         self.day_data_download(codes, db_name)
 
     def day_data_download(self, codes, db_name):
-        print('day_data_download start')
+        print('day_data_download start\n', codes)
         today = datetime.datetime.now().strftime('%Y%m%d')
         for i, code in enumerate(codes):
             time.sleep(3.6)
-            # dfs = []
             count = 0
-            print('code', code)
-
             self.lock.acquire()
-            df = self.block_request('opt10081', 종목코드=code, 기준일자=today,
-                                    수정주가구분=1, output='주식일봉차트조회', next=0)
+            df = self.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
+                                    output='주식일봉차트조회', next=0)
             self.lock.release()
-
-            print('134', 134)
             int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df[int_column] = df[int_column].replace('', 0)
             df[int_column] = df[int_column].astype(int).abs()
@@ -173,15 +167,7 @@ class DayDataDownload:
                 print(f'[{now()}] {code} {self.num} 데이터 다운로드 중 ... '
                       f'[{self.start + i + 1}/{self.end}] --{count}')
 
-                # dfs.append(df)
-                # if count == 10:
-                #     break
         self.queryQ.put('다운로드완료')
-
-            # df = pd.concat(dfs)
-            # print('df크기', len(df))
-            # df = df[['체결시간', '현재가', '시가', '고가', '저가', '거래량']]
-            # self.save_sqlite3(df, code)
 
     # ------------------------
     # Kiwoom _handler [SLOT]
@@ -385,7 +371,7 @@ class DayDataDownload:
         return liness
 
     def ParseDat(self, trcode, liness):
-        liness = liness.split('/n')
+        liness = liness.split('\n')
         start = [i for i, x in enumerate(liness) if x.startswith('@START')]
         end = [i for i, x in enumerate(liness) if x.startswith('@END')]
         block = zip(start, end)

@@ -51,8 +51,8 @@ class DayDataDownload:
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
         self.CommConnect()
 
-        kospi = f'D:/db/Candle_day/a_day{self.num}.db'
-        kosdaq = f'D:/db/Candle_day/b_day{self.num}.db'
+        kospi = f'D:/db/a_day{self.num}.db'
+        kosdaq = f'D:/db/b_day{self.num}.db'
         # multiprocessing으로 하므로 아래 함수를 두번 같이 실행하면 안된다.???
         # self.Update(kospi, 'a')
         self.Update(kosdaq, 'b')

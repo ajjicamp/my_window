@@ -67,7 +67,8 @@ class MinuteDataDownload:
         print('self.codes', self.codes)
 
         #  맨 처음이면 self.start = 0 아니면 직전 받은 code다음부터 수행
-        db_name = f"C:/Users/USER/PycharmProjects/my_window/db/a_minute{self.num}.db"
+        # db_name = f"C:/Users/USER/PycharmProjects/my_window/db/a_minute{self.num}.db"
+        db_name = f"D:/db/a_minute{self.num}.db"
 
         if not os.path.isfile(db_name):
             print('db가 존재하지 않습니다')
@@ -90,7 +91,8 @@ class MinuteDataDownload:
             if len(low_data) == 0:
                 self.start = 0
             else:
-                last_table = str(low_data[-1][0])
+                # todo 다음코드는 수정예정 last_table = str(low_data[-1][0])
+                last_table = str(low_data[-1][0][1:])
                 self.start = self.codes.index(last_table)  # last_table 다시 수행
             con.close()
 
