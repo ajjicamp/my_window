@@ -13,7 +13,7 @@ app = QApplication(sys.argv)
 
 
 class Kiwoom:
-    def __init__(self, num):
+    def __init__(self, num=None):
         self.num = num
         self.connected = False  # for login event
         self.received = False  # for tr event
@@ -38,7 +38,7 @@ class Kiwoom:
             self.connected = True
         if self.num == '02' or self.num == '04':
             self.gubun = 1 if self.num == '02' else 2
-            QTimer.singleShot(5000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
+            QTimer.singleShot(2000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
             self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
             print(' 자동 로그인 설정 완료/n')
             print(' 자동 로그인 설정용 프로세스 종료 중 ...')
