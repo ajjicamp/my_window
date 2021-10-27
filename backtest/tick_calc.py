@@ -168,7 +168,7 @@ class Mywindow(QMainWindow, form_class):
         plt.suptitle(self.sCode + '종목 틱시세 변동추이',y=0.98, size= 20)
         plt.title(str(self.curr_pos+1) + ' / ' + str(self.scr_cnt), {'fontsize' : 15},loc='left', pad=10 )
         # plt.tight_layout()
-        ax.plot(x, y, linewidth = 3, label='매도호가1')
+        ax.plot(x, y, linewidth=3, label='매도호가1')
         ax.legend()
 
         # x축 눈금설정
@@ -190,7 +190,7 @@ class Mywindow(QMainWindow, form_class):
         if min(y) == max(y):
             ytick = np.arange(y.iloc[0], (y.iloc[0] + hogaunit), hogaunit)
         ax.set_yticks(ytick)
-        ax.set_yticklabels( [str(int(i)) for i in ytick], fontdict={'size':13})
+        ax.set_yticklabels([str(int(i)) for i in ytick], fontdict={'size': 13})
 
         ## y축이름 레이블
         rate = hogaunit / y.iloc[0] * 100
@@ -368,7 +368,7 @@ class Mywindow(QMainWindow, form_class):
             ytick = np.arange(y[self.start_num], (y[self.start_num] + hogaunit), hogaunit)
 
         ax0.set_yticks(ytick)
-        ax0.set_yticklabels([str(int(i)) for i in ytick],  fontdict={'size':11})
+        ax0.set_yticklabels([str(int(i)) for i in ytick],  fontdict={'size': 11})
 
         ## y축이름 레이블
         ylabel = '호가단위: ' + str(int(hogaunit)) + '원'
@@ -406,7 +406,7 @@ class Mywindow(QMainWindow, form_class):
 
         # ax0.set_xticklabels([i[17:22]+'초' for i in x])  # 위 넉줄 코딩을 한줄에 했다.
         ax0.set_xticklabels(xtick_)  # 위 넉줄 코딩을 한줄에 했다.
-        ax0.tick_params(axis='x', top= True, labeltop=True, labelbottom=False, width=0.2, labelsize=11)
+        ax0.tick_params(axis='x', top=True, labeltop=True, labelbottom=False, width=0.2, labelsize=11)
         # ax0.tick_params(axis='x', bottom = False, labelbottom=False, width=0.2, labelsize=10)
         ax0.xaxis.set_major_locator(ticker.MultipleLocator(5))
         ax0.xaxis.set_minor_locator(ticker.MultipleLocator(1))

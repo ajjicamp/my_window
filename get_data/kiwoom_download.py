@@ -96,7 +96,6 @@ class Kiwoom:
         :param block: True: 로그인완료까지 블록킹 됨, False: 블록킹 하지 않음
         :return: None
         """
-        print('commconnect')
         self.ocx.dynamicCall("CommConnect()")
         if block:
             while not self.connected:

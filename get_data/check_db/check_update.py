@@ -2,66 +2,37 @@
 # 날짜/체결시간 순서대로 빠진것 없는지도 체크,
 import sqlite3
 import pandas as pd
+import datetime
 
+DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
+# DB_PATH = "D:/db"
 
-# DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
-DB_PATH = "D:/db"
-
-DAY_KOSPI_DB_LIST = [f'{DB_PATH}/a_day01.db',
-                     f'{DB_PATH}/a_day02.db',
-                     f'{DB_PATH}/a_day03.db',
-                     f'{DB_PATH}/a_day04.db',
-                     ]
-
-DAY_KOSDAQ_DB_LIST = [f'{DB_PATH}/b_day01.db',
-                      f'{DB_PATH}/b_day02.db',
-                      f'{DB_PATH}/b_day03.db',
-                      f'{DB_PATH}/b_day04.db',
-                      ]
-
-MINUTE_KOSPI_DB_LIST = [f'{DB_PATH}/a_minute01.db',
-                        f'{DB_PATH}/a_minute02.db',
-                        f'{DB_PATH}/a_minute03.db',
-                        f'{DB_PATH}/a_minute04.db',
-                        ]
-
-MINUTE_KOSDAQ_DB_LIST = [f'{DB_PATH}/b_minute01.db',
-                         f'{DB_PATH}/b_minute02.db',
-                         f'{DB_PATH}/b_minute03.db',
-                         f'{DB_PATH}/b_minute04.db',
-                         ]
-
-ALL_CODE = DAY_KOSPI_DB_LIST + DAY_KOSDAQ_DB_LIST + MINUTE_KOSPI_DB_LIST + MINUTE_KOSDAQ_DB_LIST
-LAST_DATE ="20211021"
-LAST_TIME ="20211021153000"
+# LAST_DATE = datetime.datetime.now().strftime("%Y%h%m")
+LAST_DATE = '20211022'
+LAST_TIME = f'{LAST_DATE}153000'
 
 
 class CheckDB:
     def __init__(self):
-        self.check_db(DAY_KOSPI_DB_LIST, '일자', LAST_DATE)
-        self.check_db(DAY_KOSDAQ_DB_LIST, '일자', LAST_DATE)
-        self.check_db(MINUTE_KOSPI_DB_LIST, '체결시간', LAST_TIME)
-        self.check_db(MINUTE_KOSDAQ_DB_LIST, '체결시간', LAST_TIME)
+        self.check_db(f'{DB_PATH}/kospi(day).db', '일자', LAST_DATE)
+        self.check_db(f'{DB_PATH}/kosdaq(day).db', '일자', LAST_DATE)
+        self.check_db(f'{DB_PATH}/kospi(1min).db', '체결시간', LAST_TIME)
+        self.check_db(f'{DB_PATH}/kosdaq(1min).db', '체결시간', LAST_TIME)
 
-    def check_db(self, db_list, key, last_value):
-        print(db_list)
-        for db in db_list:
-            con = sqlite3.connect(db)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            table_list = [val[0] for val in cur.fetchall()]
-            # print(f'{db}의 table숫자 {len(table_list)}')
+    def check_db(self, db, key, last_value):
+        con = sqlite3.connect(db)
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        table_list = [val[0] for val in cur.fetchall()]
+        # print(f'{db}의 table숫자 {len(table_list)}')
 
-            miss_table = 0
-            for table in table_list:
-                cur.execute(f"SELECT {key} FROM '{table}' ORDER BY {key} desc")
-                data = cur.fetchone()[0]
-                if data != last_value:
-                    miss_table += 1
-                    if db == 'C:/Users/USER/PycharmProjects/my_window/db/a_minute04.db':
-                        print(table, data)
-                        input()
-            print(f'오류table 숫자 {db}: {miss_table}/{len(table_list)}')
+        miss_table = 0
+        for table in table_list:
+            cur.execute(f"SELECT {key} FROM '{table}' ORDER BY {key} desc")
+            data = cur.fetchone()[0]
+            if data != last_value:
+                miss_table += 1
+        print(f'오류table 숫자 {db}: {miss_table}/{len(table_list)}')
 
 
 if __name__ == '__main__':
