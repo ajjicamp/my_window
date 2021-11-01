@@ -34,12 +34,12 @@ class MultiDB:
         self.update(codes, db_name, market)
 
     def update(self, codes, db_name, market):
-        today = datetime.datetime.now().strftime('%Y%m%d')
+        # today = datetime.datetime.now().strftime('%Y%m%d')
         for i, code in enumerate(codes):
             time.sleep(3.6)
             self.lock.acquire()
             df = self.kiwoom.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
-                                     output='주식분봉차트조회', next=0)
+                                           output='주식분봉차트조회', next=0)
             self.lock.release()
             # column 숫자로 변환
             int_column = ['현재가', '시가', '고가', '저가', '거래량']
@@ -50,6 +50,29 @@ class MultiDB:
             self.queryQ.put([df, code, db_name])
             print(f'[{now()}] {market} {code} {self.num} 데이터 다운로드 중 ... '
                   f'[{i}/{len(codes)}] --')
+
+            # 업데이트할 때는 연속조회 불필요, 만약 업데이트가 많이 밀렸을 경우에는 그만큼 반복
+            # dfs.append(df)
+            count = 0
+            while self.kiwoom.tr_remained == True:
+                time.sleep(3.6)
+                # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
+                count += 1
+                self.lock.acquire()
+                df = self.kiwoom.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
+                                               output='주식분봉차트조회', next=2)
+                self.lock.release()
+
+                # column 숫자로 변환
+                int_column = ['현재가', '시가', '고가', '저가', '거래량']
+                df[int_column] = df[int_column].astype(int).abs()
+                columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
+                df = df[columns].copy()
+                # df = df[::-1]
+                self.queryQ.put([df, code, db_name])
+                # 못 받은 데이터만큼만 반복
+                # if count == 1:
+                #     break
         proc = current_process()
         print('다운로드 완료, current proces=================', proc.name)
         self.queryQ.put('다운로드완료')
@@ -71,8 +94,8 @@ class Query:
                 print('한개 process 다운로드완료')
 
             elif data == '모든작업종료':
+                print("queryQ 종료합니다.")
                 break
-
             else:
                 print('에러발생')
 
@@ -127,18 +150,14 @@ if __name__ == '__main__':
         time.sleep(sleep_time)
 
     # 다 끝나고 나면 ...
-    while not len(active_children()) == 1:
+    while True:
         time.sleep(1)
-        # live_process = active_children()
-        # print('살아있는 자식 프로세스', live_process)
-        if active_children()[0].name == "Process_Query":
-            # print("하나밖에 없음")
+        if len(active_children()) == 1 and active_children()[0].name == "Process_Query":
+            print("하나밖에 없음")
             break
+
     time.sleep(3)
     print("모든프로세스 다운로드 종료")
-
-    # loop를 탈출 못해서 join()이 안될 수도 있다.
-    # 여기서 queryQ로 loop탈출 신호를 보내자.
     queryQ.put("모든작업종료")
 
     p_q.join()

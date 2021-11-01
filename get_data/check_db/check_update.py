@@ -8,7 +8,7 @@ DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
 # DB_PATH = "D:/db"
 
 # LAST_DATE = datetime.datetime.now().strftime("%Y%h%m")
-LAST_DATE = '20211022'
+LAST_DATE = '20211028'
 LAST_TIME = f'{LAST_DATE}153000'
 
 

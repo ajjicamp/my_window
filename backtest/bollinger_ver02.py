@@ -69,10 +69,12 @@ class BollingerTrader:
 
             count = 0
             for i in day_df.index:
-                if not day_df.at[i, '전일돌파'] and day_df.at[i, '돌파'] and (day_df.at[i, '거래량상승률'] > 10) \
+                if not day_df.at[i, '전일돌파'] and day_df.at[i, '돌파'] \
                         and (day_df.at[i, '주가상승률'] < 29):
+                    # and (day_df.at[i, '거래량상승률'] > 10) \
                     count += 1
-                    buy_price = day_df.at[i, '현재가']
+                    # buy_price = day_df.at[i, '현재가']
+                    buy_price = max(day_df.at[i, '밴드상단'], day_df.at[i, '시가'])
                     sell_price = day_df.at[i, '익일시가']
                     profit = sell_price - buy_price
                     profit_rate = round(profit / buy_price * 100, 2)
@@ -82,19 +84,21 @@ class BollingerTrader:
 
                     # 여기서 거래내용을 바탕으로 deal_point를 찾는다.
                     dolpa_data = self.dealPoint(table, day_df.at[i, '일자'],
-                                                day_df.at[i, '전일밴드상단'], day_df.at[i, '거래20'])
+                                                day_df.at[i, '밴드상단'], day_df.at[i, '거래20'])
+                                                # day_df.at[i, '전일밴드상단'], day_df.at[i, '거래20'])
+                    # print('dolpa_data', dolpa_data, day_df.at[i, '일자'], day_df.at[i, '밴드상단'], day_df.at[i, '거래20'])
 
                     # 거래를 df에 입력; 그리 많지 않으므로 전거래내용을 한개 df에 입력
                     self.jonggameme_df.loc[table] = [
                        day_df.at[i, '일자'], buy_price, sell_price, day_df.at[i, '전일종가'],
                        profit, profit_rate, volume, day_df.at[i, '거래20'], price_rate,
-                       volume_rate, day_df.at[i,'밴드상단'], day_df.at[i, '전일밴드상단'],
+                       volume_rate, day_df.at[i, '밴드상단'], day_df.at[i, '전일밴드상단'],
                        dolpa_data['돌파시간'], dolpa_data['돌파거래량'], dolpa_data['돌파거래량배율'],
                        dolpa_data['돌파가격'],
                        ]
             # print('거래내용', self.jonggameme_df)
 
-        print('최종거래df', self.jonggameme_df)
+        # print('최종거래df', self.jonggameme_df)
         # 거래내용 db에 저장(전체 종목 거래분)
         self.save_sqlite3(self.jonggameme_df, "bollinger.db", "jonggameme")
 
@@ -102,7 +106,7 @@ class BollingerTrader:
         self.summary_deal(self.jonggameme_df, 'jonggameme')
         # self.summary_deal(self.jonggameme_df, 'kosdaq')
 
-    def dealPoint(self, code, date, before_upper, volume20):
+    def dealPoint(self, code, date, upper, volume20):
         # 거래발생일자의 하루치 분봉을 가져옴
         con = sqlite3.connect(f"{DB_PATH}/kosdaq(1min).db")
         min_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
@@ -115,13 +119,15 @@ class BollingerTrader:
         # 당일 분봉데이터를 기준으로 밴드상단 돌파시점의 거래량증가율(배율) 및 누적거래량 등을 확인하여 저장
         dolpa_data = {}
         for mi in min_df.index:
-            if min_df.at[mi, '현재가'] >= before_upper:
+            if min_df.at[mi, '현재가'] >= upper:
+            # if min_df.at[mi, '현재가'] >= before_upper:
                 increase_rate = round(min_df.at[mi, '누적거래량'] / volume20, 2)
                 dolpa_data['돌파시간'] = min_df.at[mi, '체결시간'][8:12]
                 dolpa_data['돌파거래량'] = min_df.at[mi, '누적거래량']
                 dolpa_data['돌파거래량배율'] = increase_rate
                 dolpa_data['돌파가격'] = min_df.at[mi, '현재가']
                 break   # todo 이 break는 반드시 필요하다.
+
         return dolpa_data
 
     def summary_deal(self, df, index):
@@ -173,16 +179,16 @@ class PointWindow(QMainWindow, form_class):
         super().__init__()
         self.setupUi(self)
         con = sqlite3.connect("bollinger.db")
-        df = pd.read_sql(f"SELECT * FROM jonggameme", con, index_col=None)
+        df = pd.read_sql("SELECT * FROM jonggameme", con, index_col=None)
         df = df.rename(columns={'index': '종목코드'})
-        print('234df', df)
+        # print('234df', df)
         con.close()
 
         df = df[['종목코드', '일자', '매수가', '주가상승폭', '거래량상승률', '수익률', '전일밴드상단', '돌파시간', '돌파거래량배율', '돌파가격']]
         rows = len(df.index)
         self.tableWidget.setRowCount(rows)
-        print('컬럼이름리스트', df.columns)
-        print('type', type(df.at[0, '주가상승폭']) == np.float64)
+        # print('컬럼이름리스트', df.columns)
+        # print('type', type(df.at[0, '주가상승폭']) == np.float64)
         for idx in df.index:
             for col, name in enumerate(df.columns):
                 data = df.at[idx, name]
@@ -211,16 +217,16 @@ class PointWindow(QMainWindow, form_class):
     def cell_clicked(self, row, col):
         print('cellciliked', row)
         code = self.tableWidget.item(row, 0).text()
-        date = self.tableWidget.item(row, 1).text()
+        sdate = self.tableWidget.item(row, 1).text()
         before_upper = self.tableWidget.item(row, 6).text()
-        print('before upper', type(before_upper))
+        # print('before upper', type(before_upper))
         before_upper = float(before_upper)
 
         # print('code', code, date, before_upper, type(before_upper))
 
         if col > 5:
             con = sqlite3.connect(f"{DB_PATH}/kosdaq(1min).db")
-            min_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
+            min_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{sdate}%' ORDER BY 체결시간",
                                  con, index_col=None)
             con.close()
 
@@ -236,7 +242,7 @@ class PointWindow(QMainWindow, form_class):
             # 하루치 분봉데이터에 누적거래량 컬럼을 추가
 
             min_df['cum_volume_ratio'] = round(min_df['volume'].cumsum() / min_df['volume'].sum(), 2)
-            print('261', min_df)
+            # print('261', min_df)
 
             # plotly를 이용한 candle chart
             candlestick = go.Candlestick(
@@ -270,7 +276,7 @@ class PointWindow(QMainWindow, form_class):
             fig.add_trace(volume_bar, row=2, col=1, secondary_y=False)
             fig.add_trace(cum_volume_ratio, row=2, col=1, secondary_y=True)
 
-            fig_title = f"{code} 분봉차트 {date}"
+            fig_title = f"{code} 분봉차트 {sdate}"
             fig.update_layout(
                 title=fig_title,
                 yaxis1_title='Stock Price',
@@ -291,18 +297,18 @@ class PointWindow(QMainWindow, form_class):
             mpf.plot(min_df, type='candle', volume=True, addplot=adp, style=s)
             '''
         elif col <= 5:
-            date = pd.to_datetime(date)
-            print(date)
-            start = date - datetime.timedelta(days=180)
-            end = date + datetime.timedelta(days=20)
+            sdate = pd.to_datetime(sdate)
+            # print(sdate)
+            start = sdate - datetime.timedelta(days=180)
+            end = sdate + datetime.timedelta(days=20)
             start = str(start.strftime("%Y%m%d"))
             end = str(end.strftime("%Y%m%d"))
-            print('start', start, type(start))
+            # print('start', start, type(start))
             con = sqlite3.connect(f"{DB_PATH}/kosdaq(day).db")
             day_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 < {end} ORDER BY 일자",
                                  con, index_col=None)
-            print('day_df.index', day_df['일자'])
-            day_df['일자'] = pd.to_datetime(day_df['일자'])
+            # print('day_df.index', day_df['일자'])
+            # day_df['일자'] = pd.to_datetime(day_df['일자'])  # plotly는 datetime 형식으로 바꾸지 않아도 된다.
             day_df = day_df.reset_index(drop=True).set_index('일자')
             day_df.index.name = 'date'
             day_df.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
@@ -314,6 +320,13 @@ class PointWindow(QMainWindow, form_class):
             day_df['밴드상단'] = round(day_df['밴드기준선'] + day_df['종고저평균'].rolling(window=20).std() * 2, 0)
             day_df['밴드하단'] = round(day_df['밴드기준선'] - day_df['종고저평균'].rolling(window=20).std() * 2, 0)
 
+            print('day_df', day_df)
+
+            sdate = pd.to_datetime(sdate.strftime("%Y%m%d"))
+            if sdate in day_df.index:
+                print('안에 있다')
+
+            print('sdate', sdate)
             # plotly를 이용한 candle chart
             candlestick = go.Candlestick(
                           x=day_df.index,
@@ -340,7 +353,7 @@ class PointWindow(QMainWindow, form_class):
             fig.add_trace(lower, row=1, col=1)
             fig.add_trace(volume_bar, row=2, col=1)
 
-            fig_title = f"{code} 일봉차트 {date.strftime('%Y:%m:%d')}"
+            fig_title = f"{code} 일봉차트 {sdate.strftime('%Y:%m:%d')}"
             fig.update_layout(
                 title=fig_title,
                 yaxis1_title='Stock Price',
@@ -348,6 +361,11 @@ class PointWindow(QMainWindow, form_class):
                 xaxis2_title='periods',
                 xaxis1_rangeslider_visible=False,
                 xaxis2_rangeslider_visible=True,
+                annotations=[
+                    {"x": sdate, "y": before_upper, "ay": -40,
+                     "text": f"<b>{sdate.strftime('%Y%m%d')}<br>돌파{before_upper} </b>",
+                     "arrowhead": 3, "showarrow": True,
+                     "font": {"size": 15}}],
             )
             fig.show()
 
@@ -384,7 +402,7 @@ class PointWindow(QMainWindow, form_class):
 
 
 if __name__ == '__main__':
-    # bollinger = BollingerTrader()
+    bollinger = BollingerTrader()
     app = QApplication(sys.argv)
     point_window = PointWindow()
     point_window.show()
