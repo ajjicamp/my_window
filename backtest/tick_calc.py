@@ -150,9 +150,9 @@ class Mywindow(QMainWindow, form_class):
         self.ax = ax
 
         redraw =False
-        self.base_graph_draw( redraw,ex)
+        self.base_graph_draw(redraw, ex)
 
-    def base_graph_draw(self, redraw,ex):
+    def base_graph_draw(self, redraw, ex):
 
         ax =self.ax
         fig = self.fig
@@ -392,7 +392,7 @@ class Mywindow(QMainWindow, form_class):
         # ax0_twinx2.set_yticklabels(y4,  fontdict={'size':11})
 
         # 이하부분 ax0, ax_twin, ax_twin2의 x축은 동일하므로 xtick의 설정은 3가지 모두를 기술한 후 마지막에 한번만 하면 된다.
-        ax0.set_xticks(x )
+        ax0.set_xticks(x)
 
         # xticklabel 설정 ==> 시간을 초단위로 설정하고 화면상단(top)에 경과시간을 나타냄.
         xt_ = [ datetime.datetime.strptime(i,'%Y-%m-%d %H:%M:%S.%f') for i in x ]     # x값을 datetime으로 변경
@@ -654,7 +654,7 @@ class NewWindow(QMainWindow, hoga_window):
         item_sell = format(int(data['매수호가총잔량'].loc[xpos]),',')
         item_sell = QTableWidgetItem(str(item_sell))
         item_sell.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
-        self.tableWidget.setItem(21,3,item_sell )
+        self.tableWidget.setItem(21, 3, item_sell)
 
         for i in range(10):
             # 매도호가, 매도호가수량, 매도호가직전대비 입력
