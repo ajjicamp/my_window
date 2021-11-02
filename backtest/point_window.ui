@@ -113,7 +113,7 @@
     </column>
     <column>
      <property name="text">
-      <string>전일밴드상단</string>
+      <string>밴드상단</string>
      </property>
     </column>
     <column>

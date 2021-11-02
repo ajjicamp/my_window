@@ -184,7 +184,7 @@ class PointWindow(QMainWindow, form_class):
         # print('234df', df)
         con.close()
 
-        df = df[['종목코드', '일자', '매수가', '주가상승폭', '거래량상승률', '수익률', '전일밴드상단', '돌파시간', '돌파거래량배율', '돌파가격']]
+        df = df[['종목코드', '일자', '매수가', '주가상승폭', '거래량상승률', '수익률', '밴드상단', '돌파시간', '돌파거래량배율', '돌파가격']]
         rows = len(df.index)
         self.tableWidget.setRowCount(rows)
         # print('컬럼이름리스트', df.columns)
@@ -218,11 +218,10 @@ class PointWindow(QMainWindow, form_class):
         print('cellciliked', row)
         code = self.tableWidget.item(row, 0).text()
         sdate = self.tableWidget.item(row, 1).text()
-        before_upper = self.tableWidget.item(row, 6).text()
-        # print('before upper', type(before_upper))
-        before_upper = float(before_upper)
-
-        # print('code', code, date, before_upper, type(before_upper))
+        # before_upper = self.tableWidget.item(row, 6).text()
+        # before_upper = float(before_upper)
+        upper = self.tableWidget.item(row, 6).text()
+        upper = float(upper)
 
         if col > 5:
             con = sqlite3.connect(f"{DB_PATH}/kosdaq(1min).db")
@@ -230,14 +229,12 @@ class PointWindow(QMainWindow, form_class):
                                  con, index_col=None)
             con.close()
 
-            # print('before_upper', before_upper, type(before_upper))
-            # print('before_upper2', before_upper, type(before_upper))
             min_df['체결시간'] = pd.to_datetime(min_df['체결시간'])
             min_df = min_df.reset_index(drop=True).set_index('체결시간')
             min_df.index.name = 'date'
             min_df.columns = ['close', 'open', 'high', 'low', 'volume']
             min_df = min_df[['open', 'high', 'low', 'close', 'volume']]
-            min_df['b_upper'] = [before_upper for _ in range(len(min_df.index))]
+            min_df['upper'] = [upper for _ in range(len(min_df.index))]
 
             # 하루치 분봉데이터에 누적거래량 컬럼을 추가
 
@@ -255,8 +252,8 @@ class PointWindow(QMainWindow, form_class):
                 increasing_line_color='red',  # 상승봉 스타일링
                 decreasing_line_color='blue',  # 하락봉 스타일링
             )
-            b_upper = go.Scatter(x=min_df.index, y=min_df['b_upper'],
-                                 line=dict(color='red', width=1.5), name='전일밴드상단')
+            upper_plot = go.Scatter(x=min_df.index, y=min_df['upper'],
+                                    line=dict(color='red', width=1.5), name='밴드상단')
 
             volume_bar = go.Bar(x=min_df.index, y=min_df['volume'], name='volume_bar', yaxis='y1')
             cum_volume_ratio = go.Scatter(x=min_df.index, y=min_df['cum_volume_ratio'],
@@ -272,7 +269,7 @@ class PointWindow(QMainWindow, form_class):
                                    )
 
             fig.add_trace(candlestick, row=1, col=1)
-            fig.add_trace(b_upper, row=1, col=1)
+            fig.add_trace(upper_plot, row=1, col=1)
             fig.add_trace(volume_bar, row=2, col=1, secondary_y=False)
             fig.add_trace(cum_volume_ratio, row=2, col=1, secondary_y=True)
 
@@ -297,10 +294,10 @@ class PointWindow(QMainWindow, form_class):
             mpf.plot(min_df, type='candle', volume=True, addplot=adp, style=s)
             '''
         elif col <= 5:
-            sdate = pd.to_datetime(sdate)
+            tdate = pd.to_datetime(sdate)
             # print(sdate)
-            start = sdate - datetime.timedelta(days=180)
-            end = sdate + datetime.timedelta(days=20)
+            start = tdate - datetime.timedelta(days=180)
+            end = tdate + datetime.timedelta(days=20)
             start = str(start.strftime("%Y%m%d"))
             end = str(end.strftime("%Y%m%d"))
             # print('start', start, type(start))
@@ -308,7 +305,7 @@ class PointWindow(QMainWindow, form_class):
             day_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 < {end} ORDER BY 일자",
                                  con, index_col=None)
             # print('day_df.index', day_df['일자'])
-            # day_df['일자'] = pd.to_datetime(day_df['일자'])  # plotly는 datetime 형식으로 바꾸지 않아도 된다.
+            day_df['일자'] = pd.to_datetime(day_df['일자'])  # plotly는 datetime 형식으로 바꾸지 않아도 된다.
             day_df = day_df.reset_index(drop=True).set_index('일자')
             day_df.index.name = 'date'
             day_df.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
@@ -322,7 +319,7 @@ class PointWindow(QMainWindow, form_class):
 
             print('day_df', day_df)
 
-            sdate = pd.to_datetime(sdate.strftime("%Y%m%d"))
+            # sdate = pd.to_datetime(sdate.strftime("%Y%m%d"))
             if sdate in day_df.index:
                 print('안에 있다')
 
@@ -341,19 +338,20 @@ class PointWindow(QMainWindow, form_class):
 
             volume_bar = go.Bar(x=day_df.index, y=day_df['volume'], name='거래량차트')
 
-            upper = go.Scatter(x=day_df.index, y=day_df['밴드상단'], line=dict(color='red', width=1.5), name='밴드상단')
+            upperline = go.Scatter(x=day_df.index, y=day_df['밴드상단'], line=dict(color='red', width=1.5), name='밴드상단')
             midline = go.Scatter(x=day_df.index, y=day_df['밴드기준선'], line=dict(color='black', width=1.5), name='밴드기준선')
-            lower = go.Scatter(x=day_df.index, y=day_df['밴드하단'], line=dict(color='blue', width=1.5), name='밴드하단')
+            lowerline = go.Scatter(x=day_df.index, y=day_df['밴드하단'], line=dict(color='blue', width=1.5), name='밴드하단')
 
             fig = ms.make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[3, 1], vertical_spacing=0.02)
             ms.make_subplots()
             fig.add_trace(candlestick, row=1, col=1)
-            fig.add_trace(upper, row=1, col=1)
+            fig.add_trace(upperline, row=1, col=1)
             fig.add_trace(midline, row=1, col=1)
-            fig.add_trace(lower, row=1, col=1)
+            fig.add_trace(lowerline, row=1, col=1)
             fig.add_trace(volume_bar, row=2, col=1)
 
-            fig_title = f"{code} 일봉차트 {sdate.strftime('%Y:%m:%d')}"
+            # fig_title = f"{code} 일봉차트 {sdate.strftime('%Y:%m:%d')}"
+            fig_title = f"{code} 일봉차트 {sdate}"
             fig.update_layout(
                 title=fig_title,
                 yaxis1_title='Stock Price',
@@ -362,8 +360,8 @@ class PointWindow(QMainWindow, form_class):
                 xaxis1_rangeslider_visible=False,
                 xaxis2_rangeslider_visible=True,
                 annotations=[
-                    {"x": sdate, "y": before_upper, "ay": -40,
-                     "text": f"<b>{sdate.strftime('%Y%m%d')}<br>돌파{before_upper} </b>",
+                    {"x": tdate, "y": upper, "ay": -40,
+                     "text": f"<b>{sdate}<br>돌파{upper} </b>",
                      "arrowhead": 3, "showarrow": True,
                      "font": {"size": 15}}],
             )
@@ -402,7 +400,7 @@ class PointWindow(QMainWindow, form_class):
 
 
 if __name__ == '__main__':
-    bollinger = BollingerTrader()
+    # bollinger = BollingerTrader()
     app = QApplication(sys.argv)
     point_window = PointWindow()
     point_window.show()
