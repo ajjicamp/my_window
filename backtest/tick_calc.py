@@ -22,7 +22,7 @@ logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
-plt.rcParams['axes.unicode_minus'] = False #한글 폰트 사용시 마이너스 폰트 깨짐 해결
+plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
 
 form_class = uic.loadUiType("tick_calc.ui")[0]
 hoga_window = uic.loadUiType("hoga_window.ui")[0]
