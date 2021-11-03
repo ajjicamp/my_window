@@ -305,7 +305,7 @@ class PointWindow(QMainWindow, form_class):
             day_df = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 < {end} ORDER BY 일자",
                                  con, index_col=None)
             # print('day_df.index', day_df['일자'])
-            day_df['일자'] = pd.to_datetime(day_df['일자'])  # plotly는 datetime 형식으로 바꾸지 않아도 된다.
+            # day_df['일자'] = pd.to_datetime(day_df['일자'])  # plotly는 datetime 형식으로 바꾸지 않아도 된다.
             day_df = day_df.reset_index(drop=True).set_index('일자')
             day_df.index.name = 'date'
             day_df.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
@@ -317,13 +317,18 @@ class PointWindow(QMainWindow, form_class):
             day_df['밴드상단'] = round(day_df['밴드기준선'] + day_df['종고저평균'].rolling(window=20).std() * 2, 0)
             day_df['밴드하단'] = round(day_df['밴드기준선'] - day_df['종고저평균'].rolling(window=20).std() * 2, 0)
 
-            print('day_df', day_df)
+            print('day_df\n', day_df.index)
 
             # sdate = pd.to_datetime(sdate.strftime("%Y%m%d"))
-            if sdate in day_df.index:
-                print('안에 있다')
+            xdate= None
+            for i, idx in enumerate(day_df.index):
+                if idx == sdate:
+                    num = i
+                    print('num', num)
+                    xdate = day_df.index[num]
+                    print('x----', xdate)
 
-            print('sdate', sdate)
+            # print('sdate', sdate)
             # plotly를 이용한 candle chart
             candlestick = go.Candlestick(
                           x=day_df.index,
@@ -343,30 +348,36 @@ class PointWindow(QMainWindow, form_class):
             lowerline = go.Scatter(x=day_df.index, y=day_df['밴드하단'], line=dict(color='blue', width=1.5), name='밴드하단')
 
             fig = ms.make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[3, 1], vertical_spacing=0.02)
-            ms.make_subplots()
+            # fig.add_trace(arrow, row=1, col=1)
             fig.add_trace(candlestick, row=1, col=1)
             fig.add_trace(upperline, row=1, col=1)
             fig.add_trace(midline, row=1, col=1)
             fig.add_trace(lowerline, row=1, col=1)
             fig.add_trace(volume_bar, row=2, col=1)
+            # fig.show()
 
+            '''
             # fig_title = f"{code} 일봉차트 {sdate.strftime('%Y:%m:%d')}"
             fig_title = f"{code} 일봉차트 {sdate}"
             fig.update_layout(
                 title=fig_title,
+                # xaxis=dict(type="category", categoryorder='category ascending'),
                 yaxis1_title='Stock Price',
                 yaxis2_title='Volume',
                 xaxis2_title='periods',
                 xaxis1_rangeslider_visible=False,
                 xaxis2_rangeslider_visible=True,
-                annotations=[
-                    {"x": tdate, "y": upper, "ay": -40,
-                     "text": f"<b>{sdate}<br>돌파{upper} </b>",
-                     "arrowhead": 3, "showarrow": True,
-                     "font": {"size": 15}}],
             )
+            '''
+            fig.add_annotation(x=tdate, y=upper, yshift=-40,
+                               text=f"<b>{sdate}<br>돌파{upper} </b>",
+                               arrowsize=3,
+                               arrowhead=3,
+                               showarrow=True,
+                               font={"size": 15},
+                               )
+            # fig.update_xaxes(nticks=5)
             fig.show()
-
 
             '''
             # 아래방법은 좀 더 연구가 필요하다

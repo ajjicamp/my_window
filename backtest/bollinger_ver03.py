@@ -248,7 +248,7 @@ class PointWindow(QMainWindow, form_class):
             adp2 = mpf.make_addplot(min_df['cum_volume_ratio'], panel=1, color='r')
             mpf.plot(min_df, type='candle', volume=True, addplot=adp2,
                      hlines=dict(hlines=upper, colors='r', linestyle='-.', linewidths=1.5),
-                     figscale=2.5, style=s, title="분봉차트", tight_layout=True)
+                     figscale=2.4, style=s, title="분봉차트", tight_layout=True)
                      # figscale=2.5, style=s, title="MINUTE CHART", tight_layout=True)
 
         elif col <= 5:
@@ -287,7 +287,7 @@ class PointWindow(QMainWindow, form_class):
             mpf.plot(day_df, type='candle', volume=True, addplot=[adp, adp2, adp3],
                      vlines=dict(vlines=tdate, colors='y', linewidths=5, alpha=0.4),
                      title=f'DAY_CHART[{sdate} bollinger upper over]',
-                     style=s, figscale=2.5, tight_layout=True)
+                     style=s, figscale=2.4, tight_layout=True)
 
 
 if __name__ == '__main__':
