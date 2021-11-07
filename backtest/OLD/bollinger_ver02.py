@@ -23,7 +23,7 @@ plt.rcParams['axes.unicode_minus'] = False # 한글 폰트 사용시 마이너�
 
 form_class = uic.loadUiType("C:/Users/USER/PycharmProjects/my_window/backtest/point_window.ui")[0]
 
-DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
+DB_PATH = "/db"
 # db = f"{DB_PATH}/kospi(day).db"
 kosdaq_day_db = f"{DB_PATH}/kosdaq(day).db"
 kosdaq_min_db = f"{DB_PATH}/kosdaq(1min).db"
@@ -178,7 +178,7 @@ class PointWindow(QMainWindow, form_class):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        con = sqlite3.connect("bollinger.db")
+        con = sqlite3.connect("../bollinger.db")
         df = pd.read_sql("SELECT * FROM jonggameme", con, index_col=None)
         df = df.rename(columns={'index': '종목코드'})
         # print('234df', df)

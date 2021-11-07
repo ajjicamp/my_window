@@ -6,7 +6,7 @@ from kiwoom import Kiwoom
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
-DB_PATH = "C:/Users/USER/PycharmProjects/my_window/db"
+DB_PATH = "/db"
 # db = f"{DB_PATH}/kospi(day).db"
 db = f"{DB_PATH}/kosdaq(day).db"
 
@@ -122,13 +122,13 @@ class BollingerTrader:
             '''
 
     def save_sqlite3(self, deal_df, table_name):
-        con = sqlite3.connect("bollinger.db")
+        con = sqlite3.connect("../bollinger.db")
         deal_df.to_sql(f"{table_name}", con, index_label="종목코드", if_exists='replace')
         con.commit()
         con.close()
 
     def getVolume(self, dfd):
-        con = sqlite3.connect("bollinger.db")
+        con = sqlite3.connect("../bollinger.db")
         # order = '수익률(%)'
         deal_df = pd.read_sql(f"SELECT * FROM bollinger_deal ORDER BY 수익률", con, index_col=None)
         print('130\n', deal_df)
