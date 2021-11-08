@@ -1,6 +1,7 @@
 import sqlite3
 import pandas as pd
 import mplfinance as mpf
+import numpy as np
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
@@ -29,14 +30,16 @@ class BollingerTesting:
         self.buy_price = 0
         self.sell_price = 0
         self.position = {}
+        self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
 
         con = sqlite3.connect(DB_KOSDAQ_DAY)
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         table_list = [v[0] for v in cur.fetchall()]
         con.close()
-        print(table_list)
+        # print(table_list)
         self.startTrader(table_list)
+        print('트레이딩 결과\n', self.df_trading)
 
     def startTrader(self, table_list):
         for table in table_list:
@@ -53,13 +56,113 @@ class BollingerTesting:
             df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
             df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
             df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
-            print(df_day)
+            df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
+            df_day['익일시가'] = df_day['open'].shift(-1)
+            # df_day['밴도']
+            # 향후 분봉차트에 일봉 볼리저밴드를 그리기 위하여 종고저평균 19일치(1일전~19일전)데이터를 리스트로 저장.
+            # for df_day['종고저평균']
+            # print(df_day)
 
-            self.drawPlot(df_day)
-            self.drawPlot2(df_day)
-            self.drawPlot3(df_day)
-            self.drawPlot4(df_day)
+            # 종목별 대상기간을 설정하여 시물레이션
+
+            period = (df_day.index >= "2021-03-01") & (df_day.index <= "2021-09-30")
+            self.code_trading(table, df_day.loc[period])
+            print(f"시물레이션 중...{table}")
+            # print('필터 df', df_day.loc[period])
+
+            # self.drawPlot(df_day)
+            # self.drawPlot2(df_day)
+            # self.drawPlot3(df_day)
+            # self.drawPlot4(df_day)
             break
+
+    def code_trading(self, table, df_day):  # filtering 된 df_day
+        def cross_upperB():
+            pass
+
+        # 일단 검색범위를 좁히기 위하여 일봉 고가를 기준으로 볼린저밴드상단을 돌파한 날을 찾아서 시물레이션
+        for i, idx in enumerate(df_day.index):
+            if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단']:
+                # 고가돌파한 당일의 분봉데이터 가져와서 조건검색
+                xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
+                # print('i idx bandW', i, idx, df_day.at[idx, '밴드폭'])
+
+                # 분봉차트에 일봉 볼린저밴드를 나타내기 위하여 일봉데이터의 19일치(1일전~20일전) 종고저데이터 리스트를 만듦.
+                chl_avrg_list = df_day['종고저평균'].to_list()[i-19:i]   # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
+                # print('종고저평균리스트\n', chl_avrg_list, len(chl_avrg_list))
+
+                # period = (df_day.index >= "2021-03-01") & (df_day.index <= "2021-04-22")
+                # print('trade_df\n', df_day.loc[period])
+
+                con = sqlite3.connect(DB_KOSDAQ_MIN)
+                df_min = pd.read_sql(f"SELECT * FROM '{table}' WHERE 체결시간 LIKE '{xdate}%' ORDER BY 체결시간", con,
+                                     index_col='체결시간', parse_dates='체결시간')
+                con.close()
+                df_min.index.name = 'date'
+                df_min.columns = ['close', 'open', 'high', 'low', 'volume']
+                df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
+                df_min['전일고가'] = df_min['high']
+                df_min['highest'] = 0
+                df_min['highest'].update(df_min['highest'] if df_min['highest'] > df_min['high'] else df_min['high'])
+                # df_min['전일고가'].fillna(0)
+                # df_min['highest'] = 1
+
+                print('분봉', df_min)
+                break
+
+                for mi, midx in enumerate(df_min.index):
+                    # 일봉 볼린저밴드 계산
+                    close = df_min.at[midx, 'close']
+                    highest = max(df_min['high'][:mi+1])
+                    lowest = min(df_min['low'][:mi+1])
+
+                    chl_avrg = (highest + lowest + close) / 3
+                    chl_avrg_list.append(chl_avrg)
+                    avrg20 = np.mean(chl_avrg_list)
+                    std20 = np.std(chl_avrg_list)
+                    upperB = avrg20 + std20 * 2
+                    lowerB = avrg20 - std20 * 2
+                    bandWidth = upperB - lowerB
+
+                    # if (df_min.at[midx, 'close'] > upperB) & (bandWidth > df_day.at[idx, '밴드폭'] * 2.0):
+                    if df_min.at[midx, 'close'] > upperB:
+                        buy_price = df_min.at[midx, 'close'] * 1.003  # 슬리피지 감안 종가에 0.3% 더한값을 buy_price로 계산
+                        position = True
+                        sell_price = df_day.at[idx, '익일시가']
+                        profit = sell_price - buy_price
+
+                        self.df_trading.loc[table] = [buy_price, sell_price, profit, upperB]
+
+
+
+        '''
+        pre_cross_cond = df_day.at[i, 'pre_cross']
+
+        # 정확하게 하려면 볼린저밴드는 일봉기준으로 돌파기준은 분봉기준 현재가로 해야 한다.
+        cross_cond = df.at[i, 'close'] > df.at[i, 'upperB']
+
+        volume_cond = df.at[i, 'volume'] > df.at[i, 'volume_avrg20'] * volume_multiple[1]
+        bandWidth_cond = df.at[i, 'bandWidth'] > df.at[i, 'pre_bandWidth'] * bandWidth_ratio[1]
+        price_max_min_cond = ((max(df.at[i, 'max_price20']) - min(df.at[i, 'max_price20'])) /
+                              min(df.at[i, 'max_price20'])) < max_min_ratio[1]
+
+        # 분봉 동원하여 trailing stop 매도하는 건 보류
+        if not pre_cross_cond and cross_cond and volume_cond \
+            and bandWidth_cond and price_max_min_cond:
+            """             
+            # 위 조건은 일봉기준으로 할 경우 종가가 볼린저밴드 상단을 돌파했다는 의미이고 
+            #  매수가격을 돌파시점에 매수한다는 건 맞지 않다(즉 돌파후 종가가 하락할 수 있다)
+            # 엄밀히 하려면 볼린저밴드는 일봉기준으로 만들고 돌파지점은 분봉기준으로 보아야 한다.
+            """
+
+            # buy_price = df.at[i, 'upperB'] * 1.003  # 슬리피지 감안 upperB에서 0.3% up
+            buy_price = df.at[i, 'close']
+
+            # stoploss 설정 당일 3% 이하로 내려가면 stoploss 설정하는 부분은 다음에 코딩
+            sell_price = df.at[i, 'next_open']
+            profit = sell_price - buy_price
+            profit_ratio = profit / buy_price
+            '''
 
     def drawPlot(self, df_day):
         colorSet = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
@@ -74,6 +177,7 @@ class BollingerTesting:
         ax1 = fig.add_subplot(2, 1, 1)
         ax2 = fig.add_subplot(2, 1, 2)
         mpf.plot(df_day, ax=ax1, volume=ax2)
+        fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
         mpf.show()
 
     def drawPlot3(self, df_day):
@@ -101,6 +205,8 @@ class BollingerTesting:
         ap = mpf.make_addplot(df_day[['밴드상단', '밴드하단']], ax=ax2, ylabel='Bollinger Bands')
         mpf.plot(df_day, ax=ax1, volume=ax4, addplot=ap, xrotation=10, type='candle')
         fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
+        fig.canvas.mpl_connect("fig_leave_event", self.notify_event)
+        fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
 
         mpf.show()
 
@@ -108,6 +214,11 @@ class BollingerTesting:
         # 여기서 일봉차트의 클릭한 날짜의 그래프를 그린다.
         print('event', event)
 
+    def notify_event(self, event):
+        if event.xdata == None:
+            print("None")
+            return
+        print('notify', event)
 
 
 

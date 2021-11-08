@@ -16,7 +16,7 @@ class MultiDB:
         self.queryQ = queue
         self.lock = lock
         self.kiwoom = Kiwoom(self.num)
-        # self.source_code(f'{DB_PATH}/{DB_LIST[0]}', 'KOSPI')
+        self.source_code(f'{DB_PATH}/{DB_LIST[0]}', 'KOSPI')
         self.source_code(f'{DB_PATH}/{DB_LIST[1]}', 'KOSDAQ')
 
     def source_code(self, db_name, market):
@@ -55,9 +55,9 @@ class MultiDB:
             # dfs.append(df)
             count = 0
             while self.kiwoom.tr_remained == True:
+                count += 1
                 time.sleep(3.6)
                 # sys.stdout.write(f'\r코드번호{code} 진행중: {self.start + i}/{self.end} ---> 연속조회 {count + 1}/82')
-                count += 1
                 self.lock.acquire()
                 df = self.kiwoom.block_request('opt10080', 종목코드=code, 틱범위=1, 수정주가구분=1,
                                                output='주식분봉차트조회', next=2)
@@ -71,8 +71,9 @@ class MultiDB:
                 # df = df[::-1]
                 self.queryQ.put([df, code, db_name])
                 # 못 받은 데이터만큼만 반복
-                # if count == 1:
-                #     break
+                if count == 1:
+                    break
+
         proc = current_process()
         print('다운로드 완료, current proces=================', proc.name)
         self.queryQ.put('다운로드완료')
