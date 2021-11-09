@@ -71,8 +71,8 @@ class BollingerTesting:
             print(f"시물레이션 중...{table}")
             self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
             # self.code_trading(table, df_day)
-            # if i == 10:
-            #     break
+            if i == 10:
+                break
 
             # self.drawPlot(df_day)
             # self.drawPlot2(df_day)
@@ -104,7 +104,10 @@ class BollingerTesting:
             # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
             if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단'] \
                     and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * 1.5:
+
+                # -----------------------------
                 start = time.time()
+
                 self.count += 1
                 chl_avrg_list = []  # 리스트 초기화
                 xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
@@ -120,6 +123,10 @@ class BollingerTesting:
                 df_min.index.name = 'date'
                 df_min.columns = ['close', 'open', 'high', 'low', 'volume']
                 df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
+
+                # -----------------------------------------------
+                print('분봉데이터 작성 소요시간', time.time() - start)
+
                 df_min['highest'] = df_min['high'].cummax()
                 df_min['lowest'] = df_min['low'].cummin()
                 df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
@@ -129,7 +136,6 @@ class BollingerTesting:
                 df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_avrg20']
                 df_min['next_open'] = df_min['open'].shift(-1)
                 # print('분봉\n', df_min)
-                print('분봉데이터 작성 소요시간', time.time() - start)
 
                 position, buy_price, sell_price = False, 0, 0
                 for mi, m_idx in enumerate(df_min.index):
