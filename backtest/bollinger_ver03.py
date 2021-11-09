@@ -291,7 +291,7 @@ class PointWindow(QMainWindow, form_class):
 
 
 if __name__ == '__main__':
-    # bollinger = BollingerTrader()
+    bollinger = BollingerTrader()
     app = QApplication(sys.argv)
     point_window = PointWindow()
     point_window.show()

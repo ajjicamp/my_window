@@ -29,7 +29,10 @@ class BollingerTesting:
         self.count = 0
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
-        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순수익'])
+        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
+                                             '직전거래량평균', '거래량증가율', '밴드상단', '고가', '종가',
+                                             '돌파거래량', '돌파거래량배율',
+                                             ])
 
         con = sqlite3.connect(DB_KOSDAQ_DAY)
         cur = con.cursor()
@@ -39,8 +42,17 @@ class BollingerTesting:
 
         # print(table_list, '\n', len(table_list))
         self.startTrader(table_list)
-        print('트레이딩 결과\n', self.df_deal)
-        print(self.df_deal['순수익'].sum())
+        # print('트레이딩 결과\n', self.df_deal)
+        print(self.df_deal['순이익'].sum())
+
+        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
+        # self.df_deal['']
+        print(self.df_deal.info())
+
+        con = sqlite3.connect('bollinger04.db')
+        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace')
+        con.commit()
+        con.close()
 
     def startTrader(self, table_list):
         # # 전종목의 일봉데이터를 가져와서 볼린저밴드지표를 설정하고 시물레이션 시작
@@ -55,6 +67,8 @@ class BollingerTesting:
             df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
             df_day = df_day[['open', 'high', 'low', 'close', 'volume']]
 
+            df_day['volume_mean20'] = round(df_day['volume'].rolling(window=20).mean(), 0)
+            df_day['volume_ratio'] = round(df_day['volume'] / df_day['volume_mean20'], 1)
             df_day['종고저평균'] = round((df_day['close'] + df_day['high'] + df_day['low']) / 3, 0)
             df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
             df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
@@ -64,7 +78,7 @@ class BollingerTesting:
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            # print(table, '\n', df_day)
+            print('컬럼데이터타입: ', type(df_day['volume_mean20'][0]), type(df_day['high'][0]))
 
             # 종목별 대상기간을 설정하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
@@ -79,21 +93,22 @@ class BollingerTesting:
             # self.drawPlot3(df_day)
             # self.drawPlot4(df_day)
             # break
+
         print("소요시간", time.time() - starttime)
 
     def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
 
-        def _avrg20_cal(data, chl_avrg_list):
+        def _mean20_cal(data, chl_avrg_list):
             # print('chl_avrg_list', chl_avrg_list)
             chl_list = chl_avrg_list.copy()
             chl_list.append(data)
-            avrg20 = round(np.mean(chl_list), 0)
+            mean20 = round(np.mean(chl_list), 0)
             std20 = np.std(chl_list)
-            upperB = round((avrg20 + std20 * 2), 0)
-            lowerB = round((avrg20 - std20 * 2), 0)
+            upperB = round((mean20 + std20 * 2), 0)
+            lowerB = round((mean20 - std20 * 2), 0)
             # print('band_values', avrg20, upperB, lowerB)
 
-            return avrg20, upperB, lowerB
+            return mean20, upperB, lowerB
 
         for i, idx in enumerate(df_day.index):
 
@@ -123,17 +138,18 @@ class BollingerTesting:
                 df_min.index.name = 'date'
                 df_min.columns = ['close', 'open', 'high', 'low', 'volume']
                 df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
-
                 # -----------------------------------------------
                 print('분봉데이터 작성 소요시간', time.time() - start)
-
+                df_min['cum_volume'] = df_min['volume'].cumsum()
+                df_min['volume_ratio'] = \
+                    df_min['cum_volume'].apply(lambda x: round(x / df_day.at[idx, 'volume_mean20'], 1))
                 df_min['highest'] = df_min['high'].cummax()
                 df_min['lowest'] = df_min['low'].cummin()
                 df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
-                df_min['day_avrg20'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[0])
-                df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[1])
-                df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[2])
-                df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_avrg20']
+                df_min['day_mean20'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
+                df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
+                df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
+                df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
                 df_min['next_open'] = df_min['open'].shift(-1)
                 # print('분봉\n', df_min)
 
@@ -152,9 +168,17 @@ class BollingerTesting:
                         sell_price = df_day.at[idx, '익일시가']
 
                         profit = sell_price - buy_price
+                        profit_per = round(profit / buy_price * 100, 2)
                         print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
 
-                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx, buy_price, sell_price, profit]
+                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx, buy_price, sell_price,
+                                                               profit, profit_per,
+                                                               df_day.at[idx, 'volume_mean20'], df_day.at[idx, 'volume_ratio'],
+                                                               df_day.at[idx, '밴드상단'], df_day.at[idx, 'high'], df_day.at[idx, 'close'],
+                                                               df_min.at[m_idx, 'cum_volume'],
+                                                               df_min.at[m_idx, 'volume_ratio'],
+                                                               ]
+
                         print('----------')
                         break
         print('해당일수', self.count)
