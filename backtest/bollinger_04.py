@@ -43,11 +43,11 @@ class BollingerTesting:
         # print(table_list, '\n', len(table_list))
         self.startTrader(table_list)
         # print('트레이딩 결과\n', self.df_deal)
-        print(self.df_deal['순이익'].sum())
+        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 {self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum()}")
 
         self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
         # self.df_deal['']
-        print(self.df_deal.info())
+        # print(self.df_deal.info())
 
         con = sqlite3.connect('bollinger04.db')
         self.df_deal.to_sql('bollinger_deal', con, if_exists='replace')
@@ -78,15 +78,15 @@ class BollingerTesting:
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            print('컬럼데이터타입: ', type(df_day['volume_mean20'][0]), type(df_day['high'][0]))
+            # print('컬럼데이터타입: ', type(df_day['volume_mean20'][0]), type(df_day['high'][0]))
 
             # 종목별 대상기간을 설정하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
             print(f"시물레이션 중...{table}")
             self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
             # self.code_trading(table, df_day)
-            if i == 10:
-                break
+            # if i == 10:
+            #     break
 
             # self.drawPlot(df_day)
             # self.drawPlot2(df_day)
@@ -236,13 +236,6 @@ class BollingerTesting:
             print("None")
             return
         print('notify', event)
-
-
-
-
-        v_ = volume_multiple[0]
-        m_ = max_min_ratio[0]
-        b_ = bandWidth_ratio[0]
 
     def hogaUnit(self):
 
