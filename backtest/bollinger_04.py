@@ -1,3 +1,4 @@
+import datetime
 import sqlite3
 import time
 
@@ -16,12 +17,6 @@ goal_ratio = [1.03, 1.04, 1.05, 1.06, 1.07, 1.1]
 trailing_stop_price = [1, 1.05, 1.06, 1.07, 1.08, 1.10]
 trailing_stop_ratio = [0.01, 0.02, 0.03]
 
-# 범용으로 자주 써먹을 함수 미리 정의
-def cross(self, args, args2):
-    if args > args2:
-        return True
-    else:
-        return False
 
 class BollingerTesting:
     def __init__(self):
@@ -31,19 +26,24 @@ class BollingerTesting:
         self.end = None
         self.buy_price = 0
         self.sell_price = 0
-        self.position = {}
-        self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
+        self.count = 0
+
+        # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
+        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순수익'])
 
         con = sqlite3.connect(DB_KOSDAQ_DAY)
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         table_list = [v[0] for v in cur.fetchall()]
         con.close()
-        # print(table_list)
+
+        # print(table_list, '\n', len(table_list))
         self.startTrader(table_list)
-        print('트레이딩 결과\n', self.df_trading)
+        print('트레이딩 결과\n', self.df_deal)
+        print(self.df_deal['순수익'].sum())
 
     def startTrader(self, table_list):
+        # # 전종목의 일봉데이터를 가져와서 볼린저밴드지표를 설정하고 시물레이션 시작
         starttime = time.time()
         for i, table in enumerate(table_list):
             con = sqlite3.connect(DB_KOSDAQ_DAY)
@@ -60,21 +60,19 @@ class BollingerTesting:
             df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
             df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
             df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
+            df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
-            # df_day['밴도']
-            # 향후 분봉차트에 일봉 볼리저밴드를 그리기 위하여 종고저평균 19일치(1일전~19일전)데이터를 리스트로 저장.
-            # for df_day['종고저평균']
-            # print(df_day)
 
-            # 종목별 대상기간을 설정하여 시물레이션
+            # print(table, '\n', df_day)
 
-            period = (df_day.index >= "2021-03-01") & (df_day.index <= "2021-09-30")
-            self.code_trading(table, df_day.loc[period])
+            # 종목별 대상기간을 설정하여 시물레이션 시작
+            period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
             print(f"시물레이션 중...{table}")
-            if i == 10:
-                break
-            # print('필터 df', df_day.loc[period])
+            self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
+            # self.code_trading(table, df_day)
+            # if i == 10:
+            #     break
 
             # self.drawPlot(df_day)
             # self.drawPlot2(df_day)
@@ -83,17 +81,10 @@ class BollingerTesting:
             # break
         print("소요시간", time.time() - starttime)
 
-    def code_trading(self, table, df_day):  # filtering 된 df_day
-        def cross_upperB():
-            pass
+    def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
 
-        # 일단 검색범위를 좁히기 위하여 일봉 고가를 기준으로 볼린저밴드상단을 돌파한 날을 찾아서 시물레이션
-
-        # df_day = df_day[df_day['밴드돌파']]
-        print('밴드돌파', df_day)
-
-        def avrg20_cal(data, chl_avrg_list):
-            print(chl_avrg_list)
+        def _avrg20_cal(data, chl_avrg_list):
+            # print('chl_avrg_list', chl_avrg_list)
             chl_list = chl_avrg_list.copy()
             chl_list.append(data)
             avrg20 = round(np.mean(chl_list), 0)
@@ -101,23 +92,27 @@ class BollingerTesting:
             upperB = round((avrg20 + std20 * 2), 0)
             lowerB = round((avrg20 - std20 * 2), 0)
             # print('band_values', avrg20, upperB, lowerB)
-            return (avrg20, upperB, lowerB)
+
+            return avrg20, upperB, lowerB
 
         for i, idx in enumerate(df_day.index):
-            print('107', df_day['종고저평균'])
-            chl_avrg_list=[]
-            if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단']:
-                # 고가돌파한 당일의 분봉데이터 가져와서 조건검색
+
+            # 대상기간 전데이터는 제외 ---> 시작일부터 20일 전까지의 데이터는 볼린저밴드 계산을 위해서 필요.
+            if idx < datetime.datetime.strptime('2021-03-01', '%Y-%m-%d'):
+                continue
+
+            # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
+            if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단'] \
+                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * 1.5:
+                start = time.time()
+                self.count += 1
+                chl_avrg_list = []  # 리스트 초기화
                 xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
-                # print('i idx bandW', i, idx, df_day.at[idx, '밴드폭'])
 
                 # 분봉차트에 일봉 볼린저밴드를 나타내기 위하여 일봉데이터의 19일치(1일전~20일전) 종고저데이터 리스트를 만듦.
                 chl_avrg_list = df_day['종고저평균'].to_list()[i-19:i]   # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
-                print('종고저평균리스트\n', chl_avrg_list, len(chl_avrg_list))
 
-                # period = (df_day.index >= "2021-03-01") & (df_day.index <= "2021-04-22")
-                # print('trade_df\n', df_day.loc[period])
-
+                # 분봉데이터 가져오기
                 con = sqlite3.connect(DB_KOSDAQ_MIN)
                 df_min = pd.read_sql(f"SELECT * FROM '{table}' WHERE 체결시간 LIKE '{xdate}%' ORDER BY 체결시간", con,
                                      index_col='체결시간', parse_dates='체결시간')
@@ -125,71 +120,38 @@ class BollingerTesting:
                 df_min.index.name = 'date'
                 df_min.columns = ['close', 'open', 'high', 'low', 'volume']
                 df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
-                # df_min['highest'] = df_min.apply(lambda x: highcol(x['high'], x['highest']), axis=1)
                 df_min['highest'] = df_min['high'].cummax()
                 df_min['lowest'] = df_min['low'].cummin()
                 df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
-                df_min['day_avrg20'] = df_min['종고저평균'].apply(lambda x: avrg20_cal(x, chl_avrg_list)[0])
-                df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: avrg20_cal(x, chl_avrg_list)[1])
-                df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: avrg20_cal(x, chl_avrg_list)[2])
+                df_min['day_avrg20'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[0])
+                df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[1])
+                df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _avrg20_cal(x, chl_avrg_list)[2])
+                df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_avrg20']
+                df_min['next_open'] = df_min['open'].shift(-1)
+                # print('분봉\n', df_min)
+                print('분봉데이터 작성 소요시간', time.time() - start)
 
-                print('분봉\n', df_min)
-                break
+                position, buy_price, sell_price = False, 0, 0
+                for mi, m_idx in enumerate(df_min.index):
+                    # print('인덱스확인', mi, m_idx, len(df_min.index), df_min.index[-1])
+                    # 매수는 하루에 한번뿐이다. 한번하면 stop
+                    if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
+                            and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.5)\
+                            and (not position):
+                        # print('밴드폭확인', df_min.at[m_idx, 'day_bandWidth'], df_day.at[idx, '전일밴드폭'])
 
-                for mi, midx in enumerate(df_min.index):
-
-                    # 일봉 볼린저밴드 계산
-                    close = df_min.at[midx, 'close']
-                    highest = max(df_min['high'][:mi+1])
-                    lowest = min(df_min['low'][:mi+1])
-
-                    chl_avrg = (highest + lowest + close) / 3
-                    chl_avrg_list.append(chl_avrg)
-                    avrg20 = np.mean(chl_avrg_list)
-                    std20 = np.std(chl_avrg_list)
-                    upperB = avrg20 + std20 * 2
-                    lowerB = avrg20 - std20 * 2
-                    bandWidth = upperB - lowerB
-
-                    # if (df_min.at[midx, 'close'] > upperB) & (bandWidth > df_day.at[idx, '밴드폭'] * 2.0):
-                    if df_min.at[midx, 'close'] > upperB:
-                        buy_price = df_min.at[midx, 'close'] * 1.003  # 슬리피지 감안 종가에 0.3% 더한값을 buy_price로 계산
+                        buy_price = df_min.at[m_idx, 'close']
                         position = True
+                        # print('매수가', m_idx, buy_price)
                         sell_price = df_day.at[idx, '익일시가']
+
                         profit = sell_price - buy_price
+                        print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
 
-                        # self.df_trading.loc[table] = [buy_price, sell_price, profit, upperB]
-        # break
-
-
-        '''
-        pre_cross_cond = df_day.at[i, 'pre_cross']
-
-        # 정확하게 하려면 볼린저밴드는 일봉기준으로 돌파기준은 분봉기준 현재가로 해야 한다.
-        cross_cond = df.at[i, 'close'] > df.at[i, 'upperB']
-
-        volume_cond = df.at[i, 'volume'] > df.at[i, 'volume_avrg20'] * volume_multiple[1]
-        bandWidth_cond = df.at[i, 'bandWidth'] > df.at[i, 'pre_bandWidth'] * bandWidth_ratio[1]
-        price_max_min_cond = ((max(df.at[i, 'max_price20']) - min(df.at[i, 'max_price20'])) /
-                              min(df.at[i, 'max_price20'])) < max_min_ratio[1]
-
-        # 분봉 동원하여 trailing stop 매도하는 건 보류
-        if not pre_cross_cond and cross_cond and volume_cond \
-            and bandWidth_cond and price_max_min_cond:
-            """             
-            # 위 조건은 일봉기준으로 할 경우 종가가 볼린저밴드 상단을 돌파했다는 의미이고 
-            #  매수가격을 돌파시점에 매수한다는 건 맞지 않다(즉 돌파후 종가가 하락할 수 있다)
-            # 엄밀히 하려면 볼린저밴드는 일봉기준으로 만들고 돌파지점은 분봉기준으로 보아야 한다.
-            """
-
-            # buy_price = df.at[i, 'upperB'] * 1.003  # 슬리피지 감안 upperB에서 0.3% up
-            buy_price = df.at[i, 'close']
-
-            # stoploss 설정 당일 3% 이하로 내려가면 stoploss 설정하는 부분은 다음에 코딩
-            sell_price = df.at[i, 'next_open']
-            profit = sell_price - buy_price
-            profit_ratio = profit / buy_price
-        '''
+                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx, buy_price, sell_price, profit]
+                        print('----------')
+                        break
+        print('해당일수', self.count)
 
     def drawPlot(self, df_day):
         colorSet = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
@@ -221,7 +183,6 @@ class BollingerTesting:
         mpf.plot(df_day, ax=ax3, type='candle', axtitle='nightclouds')
         mpf.plot(df_day, type='candle', ax=ax4, axtitle='starsandstripes')
         fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
-
         mpf.show()
 
     def drawPlot4(self, df_day):
@@ -234,7 +195,6 @@ class BollingerTesting:
         fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
         fig.canvas.mpl_connect("fig_leave_event", self.notify_event)
         fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
-
         mpf.show()
 
     def clicked_graph(self, event):
@@ -250,81 +210,19 @@ class BollingerTesting:
 
 
 
-    '''
         v_ = volume_multiple[0]
         m_ = max_min_ratio[0]
         b_ = bandWidth_ratio[0]
 
-
-    def traderBollinger(self, df, table):
-        for i in df.index:
-            pre_cross_cond = df.at[i, 'pre_cross']
-
-            # 정확하게 하려면 볼린저밴드는 일봉기준으로 돌파기준은 분봉기준 현재가로 해야 한다.
-            cross_cond = df.at[i, 'close'] > df.at[i, 'upperB']
-
-            volume_cond = df.at[i, 'volume'] > df.at[i, 'volume_avrg20'] * volume_multiple[1]
-            bandWidth_cond = df.at[i, 'bandWidth'] > df.at[i, 'pre_bandWidth'] * bandWidth_ratio[1]
-            price_max_min_cond = ((max(df.at[i, 'max_price20']) - min(df.at[i, 'max_price20'])) /
-                                  min(df.at[i, 'max_price20'])) < max_min_ratio[1]
-
-            # 분봉 동원하여 trailing stop 매도하는 건 보류
-            if not pre_cross_cond and cross_cond and volume_cond \
-                and bandWidth_cond and price_max_min_cond:
-
-                """             
-                # 위 조건은 일봉기준으로 할 경우 종가가 볼린저밴드 상단을 돌파했다는 의미이고 
-                #  매수가격을 돌파시점에 매수한다는 건 맞지 않다(즉 돌파후 종가가 하락할 수 있다)
-                # 엄밀히 하려면 볼린저밴드는 일봉기준으로 만들고 돌파지점은 분봉기준으로 보아야 한다.
-                """
-                
-                # buy_price = df.at[i, 'upperB'] * 1.003  # 슬리피지 감안 upperB에서 0.3% up
-                buy_price = df.at[i, 'close']
-
-                # stoploss 설정 당일 3% 이하로 내려가면 stoploss 설정하는 부분은 다음에 코딩
-                sell_price = df.at[i, 'next_open']
-                profit = sell_price - buy_price
-                profit_ratio = profit / buy_price
-
-
-
     def hogaUnit(self):
-
-
-        if not df['preCross'] and df['cross'] and volume_cond
-        # def strategy(self):
-        # if
-
 
         table_list = self.sqlTableList(DB_KOSDAQ_DAY)
         print('table_list', table_list)
-        self.df_day = self.bringDB(DB_KOSDAQ_DAY, '000250')
-
-    # sqlite3 DB에서 table name 구하여 리스트에 저장
-    def sqlTableList(self, db_name):
-        con = sqlite3.connect(db_name)
-        cur = con.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        table_list = [v[0] for v in cur.fetchall()]
-
-        return table_list
 
     def bringDB(self, sqlDB, table):
         con =sqlite3.connect(sqlDB)
         self.df_day = pd.read_sql(f"SELECT * FROM '{table}' WHERE ")
 
-    # 당일 체크기준 매수조건
-    def buy_condition(self, df):    #
-        volume_condition = df.volume > df.avrg_volume * multi
-        price_condition = df['close'] > df['preBandW'] * 1.5
-        bandWidth_cond  = (max(df['avrg_bandW'] - min(df['avrg_bandW'])) / min(df['evrg_bandW'])  < 0.1
-        cross_condition = df['close'] > df['upperB']
-
-    def sell_condition(self):
-        if self.position == True:
-            sell
-    '''
-
 
 if __name__ == '__main__':
-    bollinger_test = BollingerTesting()
+    btest = BollingerTesting()
