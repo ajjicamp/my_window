@@ -1,63 +1,54 @@
-# pykiwoom을 수정하여 프로젝트에 넣어 놓고 사용
-import sys
-# import queue
-from PyQt5.QtWidgets import *
-from PyQt5.QAxContainer import *
-import pythoncom
-import datetime
-import parser
-# from RealType import *
-# from multiprocessing import Process, Queue
-import pandas as pd
-import time
-import logging
 import os
-import timeit
+import sys
+from PyQt5.QAxContainer import *
+from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import *
+import logging
+import pandas as pd
+import zipfile
+import pythoncom
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from login.manuallogin22 import find_window, manual_login, auto_on
+app = QApplication(sys.argv)
 
-# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
-logging.basicConfig(level=logging.INFO)
 
-class Kiwoom():
-    def __init__(self, login=False):
-        # super().__init__()
-        # print("현재프로세서: ", mp.current_process())
-        self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")      # PyQt5.QAxContainer 모듈
-
-        self.connected = False              # for login event
-        self.received = False               # for tr event
-        self.tr_items = None                # tr input/output items
-        self.tr_data = None                 # tr output data
+class Kiwoom:
+    def __init__(self, num=None):
+        self.num = num
+        self.connected = False  # for login event
+        self.received = False  # for tr event
+        self.tr_items = None  # tr input/output items
+        self.tr_data = None  # tr output data
         self.tr_record = None
-        # self.start_time = None          # 작업시간을 측정하기 위하여 시작시간 설정
+        self.ocx = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")  # PyQt5.QAxContainer 모듈
 
-        self._set_signals_slots()
-
-        # 조건식때문에 작동하지 않는다. 언제 작동하려고 준비한건지
-        if login:
-            self.CommConnect()
-
-    def _set_signals_slots(self):
+        # slot 설정
         self.ocx.OnEventConnect.connect(self._handler_login)
         self.ocx.OnReceiveTrData.connect(self._handler_tr)
-        self.ocx.OnReceiveConditionVer.connect(self._handler_condition_load)
         self.ocx.OnReceiveMsg.connect(self._handler_msg)
+        self.CommConnect()
 
+    # ------------------------
+    # Kiwoom _handler [SLOT]
+    # ------------------------
     def _handler_login(self, err_code):
+        # print('handler_login')
         logging.info(f"hander login {err_code}")
         if err_code == 0:
             self.connected = True
+        if self.num == '02' or self.num == '04':
+            self.gubun = 1 if self.num == '02' else 2
+            QTimer.singleShot(2000, lambda: auto_on(self.gubun))  # 인자는 첫번째 계정 or 두번째계정 송부
+            self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
+            print(' 자동 로그인 설정 완료/n')
+            print(' 자동 로그인 설정용 프로세스 종료 중 ...')
 
     def _handler_condition_load(self, ret, msg):
         if ret == 1:
             self.condition_loaded = True
 
-    def _handler_tr_condition(self, screen_no, code_list, cond_name, cond_index, next):
-        codes = code_list.split(';')[:-1]
-        self.tr_condition_data = codes
-        self.tr_condition_loaded= True
-
     def _handler_tr(self, screen, rqname, trcode, record, next):
-        logging.info(f"OnReceiveTrData {screen} {rqname} {trcode} {record} {next}")
+        # logging.info(f"OnReceiveTrData {screen} {rqname} {trcode} {record} {next}")
         try:
             record = None
             items = None
@@ -96,9 +87,9 @@ class Kiwoom():
     def _handler_msg(self, screen, rqname, trcode, msg):
         logging.info(f"OnReceiveMsg {screen} {rqname} {trcode} {msg}")
 
-    #-------------------------------------------------------------------------------------------------------------------
-    # OpenAPI+ 메서드
-    #-------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # kiwoom method
+    # ---------------------------------------------------------------
     def CommConnect(self, block=True):
         """
         로그인 윈도우를 실행합니다.
@@ -143,6 +134,31 @@ class Kiwoom():
         """
         self.ocx.dynamicCall("SetInputValue(QString, QString)", id, value)
 
+    def GetRepeatCnt(self, trcode, rqname):
+        """
+        멀티데이터의 행(row)의 개수를 얻는 메서드
+        :param trcode: TR코드
+        :param rqname: 사용자가 설정한 요청이름
+        :return: 멀티데이터의 행의 개수
+        """
+        count = self.ocx.dynamicCall("GetRepeatCnt(QString, QString)", trcode, rqname)
+        return count
+
+    def CommKwRqData(self, arr_code, next, code_count, type, rqname, screen):
+        """
+        여러 종목 (한 번에 100종목)에 대한 TR을 서버로 송신하는 메서드
+        :param arr_code: 여러 종목코드 예: '000020:000040'
+        :param next: 0: 처음조회
+        :param code_count: 종목코드의 개수
+        :param type: 0: 주식종목 3: 선물종목
+        :param rqname: 사용자가 설정하는 요청이름
+        :param screen: 화면번호
+        :return:
+        """
+        ret = self.ocx.dynamicCall("CommKwRqData(QString, bool, int, int, QString, QString)", arr_code, next, code_count,
+                                   type, rqname, screen)
+        return ret
+
     def GetCodeListByMarket(self, market):
         """
         시장별 상장된 종목코드를 반환하는 메서드
@@ -153,14 +169,6 @@ class Kiwoom():
         data = self.ocx.dynamicCall("GetCodeListByMarket(QString)", market)
         tokens = data.split(';')[:-1]
         return tokens
-
-    def GetConnectState(self):
-        """
-        현재접속 상태를 반환하는 메서드
-        :return: 0:미연결, 1: 연결완료
-        """
-        ret = self.ocx.dynamicCall("GetConnectState()")
-        return ret
 
     def GetMasterCodeName(self, code):
         """
@@ -191,8 +199,10 @@ class Kiwoom():
         :return:
         '''
         trcode = trcode[0].lower()
-        lines = parser.read_enc(trcode)
-        self.tr_items = parser.parse_dat(trcode, lines)
+        # lines = parser.read_enc(trcode)
+        lines = self.ReadEnc(trcode)
+
+        self.tr_items = self.ParseDat(trcode, lines)
         self.tr_record = kwargs["output"]
         next = kwargs["next"]
 
@@ -210,14 +220,37 @@ class Kiwoom():
         while not self.received:
             pythoncom.PumpWaitingMessages()
 
-        return self.tr_data
+        return self.tr_data  # df output항목을 columns로 하는 데이터프레임을 반환(_handler_tr과 상호작용
 
-    def GetCommDataEx(self, trcode, rqname):
-        data = self.ocx.dynamicCall("GetCommDataEx(QString, QString)", trcode, rqname)
-        return data
+    def ReadEnc(self, trcode):
+        openapi_path = "C:/OpenAPI"
+        enc = zipfile.ZipFile(f'{openapi_path}/data/{trcode}.enc')
 
-    def CurrentTime(self):
-        return time.strftime('%H%M%S')
+        liness = enc.read(trcode.upper() + '.dat').decode('cp949')
+        return liness
+
+    def ParseDat(self, trcode, liness):
+        liness = liness.split('\n')
+        start = [i for i, x in enumerate(liness) if x.startswith('@START')]
+        end = [i for i, x in enumerate(liness) if x.startswith('@END')]
+        block = zip(start, end)
+        enc_data = {'trcode': trcode, 'input': [], 'output': []}
+        for start, end in block:
+            block_data = liness[start - 1:end + 1]
+            block_info = block_data[0]
+            block_type = 'input' if 'INPUT' in block_info else 'output'
+            record_line = block_data[1]
+            tokens = record_line.split('_')[1].strip()
+            record = tokens.split('=')[0]
+            fields = block_data[2:-1]
+            field_name = []
+            for line in fields:
+                field = line.split('=')[0].strip()
+                field_name.append(field)
+            fields = {record: field_name}
+            enc_data['input'].append(fields) if block_type == 'input' else enc_data['output'].append(fields)
+        return enc_data
+
 
 if not QApplication.instance():       # PyQt5.QtWidgets 모듈
     app = QApplication(sys.argv)

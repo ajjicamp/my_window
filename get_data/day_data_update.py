@@ -40,7 +40,7 @@ class MultiDB:
             # count += 1
             self.lock.acquire()
             df = self.kiwoom.block_request('opt10081', 종목코드=code, 기준일자=today, 수정주가구분=1,
-                                    output='주식일봉차트조회', next=0)
+                                    output='주식일봉조회', next=0)
             self.lock.release()
             int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
             df[int_column] = df[int_column].replace('', 0)

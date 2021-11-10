@@ -1,10 +1,10 @@
 import datetime
 import sqlite3
 import time
-
 import pandas as pd
 import mplfinance as mpf
 import numpy as np
+from kiwoom import Kiwoom
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
@@ -22,6 +22,7 @@ class BollingerTesting:
     def __init__(self):
         self.df_day = pd.DataFrame()
         self.df_min = pd.DataFrame()
+        self.df_kosdaq_jisu = pd.DataFrame()
         self.start = None
         self.end = None
         self.buy_price = 0
@@ -30,9 +31,28 @@ class BollingerTesting:
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
         self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전거래량평균', '거래량증가율', '밴드상단', '고가', '종가',
-                                             '돌파거래량', '돌파거래량배율',
+                                             '직전V평균', 'V증가율', '밴드상단', '고가', '종가',
+                                             '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
+        """
+        kiwoom = Kiwoom()
+        df_kosdaq_jisu = kiwoom.block_request('opt20006', 업종코드='101', 기준일자='20210930', output='업종일봉조회', next=0)
+        df_kosdaq_jisu = df_kosdaq_jisu[['일자', '시가', '고가', '저가', '현재가', '거래량', '거래대금']]
+        df_kosdaq_jisu.columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+        df_kosdaq_jisu = df_kosdaq_jisu.reset_index(drop=True).set_index('date')
+        df_kosdaq_jisu = df_kosdaq_jisu.astype(int)
+
+        con = sqlite3.connect("market_jisu.db")
+        df_kosdaq_jisu.to_sql('kosdaq_jisu', con, if_exists='replace')
+        con.commit()
+        con.close()
+        """
+
+        con = sqlite3.connect("market_jisu.db")
+        self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
+        self.df_kosdaq_jisu['익일시가'] = self.df_kosdaq_jisu['open'].shift(-1)
+        # print('코스닥지수\n', self.df_kosdaq_jisu)
+        con.close()
 
         con = sqlite3.connect(DB_KOSDAQ_DAY)
         cur = con.cursor()
@@ -40,17 +60,13 @@ class BollingerTesting:
         table_list = [v[0] for v in cur.fetchall()]
         con.close()
 
-        # print(table_list, '\n', len(table_list))
         self.startTrader(table_list)
-        # print('트레이딩 결과\n', self.df_deal)
-        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 {self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum()}")
+        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
+              f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
 
         self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
-        # self.df_deal['']
-        # print(self.df_deal.info())
-
         con = sqlite3.connect('bollinger04.db')
-        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace')
+        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace', index=False)
         con.commit()
         con.close()
 
@@ -78,13 +94,10 @@ class BollingerTesting:
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            # print('컬럼데이터타입: ', type(df_day['volume_mean20'][0]), type(df_day['high'][0]))
-
             # 종목별 대상기간을 설정하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
-            print(f"시물레이션 중...{table}")
+            print(f"시물레이션 중 {table}... {i + 1} / {len(table_list)}")
             self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
-            # self.code_trading(table, df_day)
             # if i == 10:
             #     break
 
@@ -94,19 +107,17 @@ class BollingerTesting:
             # self.drawPlot4(df_day)
             # break
 
-        print("소요시간", time.time() - starttime)
+        # print("소요시간", time.time() - starttime)
 
     def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
 
         def _mean20_cal(data, chl_avrg_list):
-            # print('chl_avrg_list', chl_avrg_list)
             chl_list = chl_avrg_list.copy()
             chl_list.append(data)
             mean20 = round(np.mean(chl_list), 0)
             std20 = np.std(chl_list)
             upperB = round((mean20 + std20 * 2), 0)
             lowerB = round((mean20 - std20 * 2), 0)
-            # print('band_values', avrg20, upperB, lowerB)
 
             return mean20, upperB, lowerB
 
@@ -139,7 +150,6 @@ class BollingerTesting:
                 df_min.columns = ['close', 'open', 'high', 'low', 'volume']
                 df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
                 # -----------------------------------------------
-                print('분봉데이터 작성 소요시간', time.time() - start)
                 df_min['cum_volume'] = df_min['volume'].cumsum()
                 df_min['volume_ratio'] = \
                     df_min['cum_volume'].apply(lambda x: round(x / df_day.at[idx, 'volume_mean20'], 1))
@@ -155,33 +165,79 @@ class BollingerTesting:
 
                 position, buy_price, sell_price = False, 0, 0
                 for mi, m_idx in enumerate(df_min.index):
-                    # print('인덱스확인', mi, m_idx, len(df_min.index), df_min.index[-1])
                     # 매수는 하루에 한번뿐이다. 한번하면 stop
                     if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
                             and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.5)\
                             and (not position):
-                        # print('밴드폭확인', df_min.at[m_idx, 'day_bandWidth'], df_day.at[idx, '전일밴드폭'])
 
                         buy_price = df_min.at[m_idx, 'close']
                         position = True
-                        # print('매수가', m_idx, buy_price)
                         sell_price = df_day.at[idx, '익일시가']
 
                         profit = sell_price - buy_price
                         profit_per = round(profit / buy_price * 100, 2)
-                        print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
+                        # print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
 
+                        juga_ratio = round((df_day.at[idx, '익일시가'] - df_day.at[idx, 'close']) / df_day.at[idx, 'close']
+                                           * 100, 2)
+                        df_kosdaq = self.df_kosdaq_jisu.loc[self.df_kosdaq_jisu.index == idx]
+                        jisu_ratio = round((df_kosdaq.at[idx, '익일시가'] - df_kosdaq.at[idx, 'close']) /
+                                           df_kosdaq.at[idx, 'close'] * 100, 2)
                         self.df_deal.loc[len(self.df_deal)] = [table, m_idx, buy_price, sell_price,
                                                                profit, profit_per,
-                                                               df_day.at[idx, 'volume_mean20'], df_day.at[idx, 'volume_ratio'],
-                                                               df_day.at[idx, '밴드상단'], df_day.at[idx, 'high'], df_day.at[idx, 'close'],
+                                                               df_day.at[idx, 'volume_mean20'],
+                                                               df_day.at[idx, 'volume_ratio'],
+                                                               df_day.at[idx, '밴드상단'], df_day.at[idx, 'high'],
+                                                               df_day.at[idx, 'close'],
                                                                df_min.at[m_idx, 'cum_volume'],
                                                                df_min.at[m_idx, 'volume_ratio'],
+                                                               juga_ratio, jisu_ratio,
                                                                ]
+                        break   # 첫돌파만 매수, 나머지는 pass
 
-                        print('----------')
-                        break
-        print('해당일수', self.count)
+#  bollinger_deal DB애서 data를 가져와서 tableWidget 출력 및 그래프 출력
+import sys
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt
+from PyQt5 import uic
+import mplfinance as mpf
+# form_class =
+
+
+# class PointWindow(QMainWindow, form_class):
+class PointWindow(QMainWindow):
+    def __init__(self):
+        super(PointWindow, self).__init__()
+        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
+        df = pd.read_sql("SELECT * FROM bollinger_deal", con)
+        # df = df[]
+        column_count = len(df.columns)
+        row_count = len(df)
+        self.setGeometry(100, 100, 1800, 900)
+        self.table = QTableWidget(self)
+        self.table.setGeometry(0, 0, 1790, 880)
+
+        self.table.setRowCount(row_count)
+        self.table.setColumnCount(column_count)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalHeaderLabels(df.columns)
+
+        row = 0
+        for idx, value in df.items():
+            print(idx, value[0], type(idx[0]))
+            input()
+
+            # for col in range(len(df.columns)):
+            #     self.table.setItem(row, col, QTableWidgetItem(str(value[col])))
+            #     print('columns0', df.columns[0])
+            #     print('------------')
+            #     print(item)
+            # if idx == 10:
+            #     break
+            # row += 1
+            # self.show()
+
 
     def drawPlot(self, df_day):
         colorSet = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
@@ -248,4 +304,7 @@ class BollingerTesting:
 
 
 if __name__ == '__main__':
-    btest = BollingerTesting()
+    # btest = BollingerTesting()
+    app = QApplication(sys.argv)
+    pwindow = PointWindow()
+    app.exec_()
