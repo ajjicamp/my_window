@@ -5,6 +5,8 @@ import pandas as pd
 import mplfinance as mpf
 import numpy as np
 from kiwoom import Kiwoom
+from PyQt5.QtCore import Qt
+
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
@@ -34,7 +36,6 @@ class BollingerTesting:
                                              '직전V평균', 'V증가율', '밴드상단', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
-        """
         kiwoom = Kiwoom()
         df_kosdaq_jisu = kiwoom.block_request('opt20006', 업종코드='101', 기준일자='20210930', output='업종일봉조회', next=0)
         df_kosdaq_jisu = df_kosdaq_jisu[['일자', '시가', '고가', '저가', '현재가', '거래량', '거래대금']]
@@ -46,7 +47,6 @@ class BollingerTesting:
         df_kosdaq_jisu.to_sql('kosdaq_jisu', con, if_exists='replace')
         con.commit()
         con.close()
-        """
 
         con = sqlite3.connect("market_jisu.db")
         self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
@@ -199,7 +199,7 @@ class BollingerTesting:
 import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-from PyQt5 import uic
+from PyQt5 import QtGui, uic
 import mplfinance as mpf
 # form_class =
 
@@ -211,6 +211,7 @@ class PointWindow(QMainWindow):
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
         # df = df[]
+
         column_count = len(df.columns)
         row_count = len(df)
         self.setGeometry(100, 100, 1800, 900)
@@ -222,22 +223,36 @@ class PointWindow(QMainWindow):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setHorizontalHeaderLabels(df.columns)
+        self.table.setSortingEnabled(True)
+        self.table.setFont(QtGui.QFont("맑은 고딕", 10))
+        for i in range(2, 15):
+            self.table.setColumnWidth(i, 90)
+        self.table.setColumnWidth(6, 120)
 
-        row = 0
-        for idx, value in df.items():
-            print(idx, value[0], type(idx[0]))
-            input()
+        print('volume평균', df['직전V평균'][0], type(df['직전V평균'][0]))
+        print('돌파V', df['돌파V'][0], type(df['돌파V'][0]))
+        for i, val in enumerate(df.values):
+            for col in range(len(df.columns)):
+                data = val[col]
+                item = None
+                if type(val[col]) == str:
+                    item = QTableWidgetItem(data)
+                    # self.table.setItem(i, col, item)
+                    item.setTextAlignment(int(Qt.AlignCenter) | int(Qt.AlignVCenter))
 
-            # for col in range(len(df.columns)):
-            #     self.table.setItem(row, col, QTableWidgetItem(str(value[col])))
-            #     print('columns0', df.columns[0])
-            #     print('------------')
-            #     print(item)
-            # if idx == 10:
-            #     break
-            # row += 1
-            # self.show()
+                elif type(val[col]) == float or type(val[col]) == int:
+                    # np.set_printoptions(precision=6, suppress=True)
+                    # print('float or int 맞다')
+                    item = QTableWidgetItem()
+                    item.setData(Qt.DisplayRole, data)
+                    # self.table.setItem(i, col, item)
+                    item.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+                self.table.setItem(i, col, item)
+                # pd.options.display.float_format = '{:.5f}'.format
 
+                print(val[col])
+
+        self.show()
 
     def drawPlot(self, df_day):
         colorSet = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
