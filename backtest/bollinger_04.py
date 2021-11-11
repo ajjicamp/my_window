@@ -204,6 +204,7 @@ from PyQt5 import QtGui, uic
 import mplfinance as mpf
 # form_class =
 from matplotlib import gridspec
+import matplotlib.pyplot as mp
 
 
 # class PointWindow(QMainWindow, form_class):
@@ -345,22 +346,36 @@ class PointWindow(QMainWindow):
         fig.subplots_adjust(left=0.05, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
 
         ax1 = fig.add_subplot(gs[0])
+        # ax11 = ax1.twinx()
         ax2 = fig.add_subplot(gs[1])
 
         ap = mpf.make_addplot(df_day[['밴드상단', '밴드기준선', '밴드하단']], ax=ax1)
-        # mc = mpf.make_marketcolors(up='r', down='b')
         mc = mpf.make_marketcolors(up='r', down='b',
-                                   # edge='lime',
+                                   # edge='white',   # 'lime',
                                    wick={'up': 'r', 'down': 'b'},
                                    volume='gray',
-                                   ohlc='black')
+                                   ohlc='black',
+                                   )
+        """
+         'candle_width': 0.525,
+         'line_width': 1.3,
+         'ohlc_linewidth': 0.9583333333333334,
+         'ohlc_ticksize': 0.35,
+         'volume_linewidth': 0.65,
+         'volume_width': 0.9533333333333333}
+        """
+
         s = mpf.make_mpf_style(marketcolors=mc)
 
-        mpf.plot(df_day, ax=ax1, volume=ax2, addplot=ap, xrotation=10, type='candle', style=s,
-                 update_width_config=dict(candle_linewidth=0.8, candle_width=0.8))
-        fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
-        # fig.canvas.mpl_connect("fig_leave_event", self.notify_event)
-        fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
+        # mpf.plot(df_day, ax=ax1, volume=ax2, addplot=ap, xrotation=10, type='candle', style=s,
+        mpf.plot(df_day, ax=ax1, volume=ax2, xrotation=10, type='candle', style=s,
+                 # update_width_config=dict(candle_linewidth=0.1, candle_width=0.8, volume_width=0.8))
+                 update_width_config=dict(candle_linewidth=0.8, candle_width=0.8, volume_width=0.8, line_width=1.5))
+        ax11 = ax1.twinx()
+        # mp.plot(ax=ax11, df_day['밴드상단'])
+
+        # fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
+        # fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
         mpf.show()
 
     def clicked_graph(self, event):
