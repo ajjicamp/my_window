@@ -395,8 +395,8 @@ class Mywindow(QMainWindow, form_class):
         ax0.set_xticks(x)
 
         # xticklabel 설정 ==> 시간을 초단위로 설정하고 화면상단(top)에 경과시간을 나타냄.
-        xt_ = [ datetime.datetime.strptime(i,'%Y-%m-%d %H:%M:%S.%f') for i in x ]     # x값을 datetime으로 변경
-        xts = [ datetime.datetime.timestamp(i) for i in xt_]                # 위 값을 다시 timestamp(float type)로 변환
+        xt_ = [datetime.datetime.strptime(i, '%Y-%m-%d %H:%M:%S.%f') for i in x]     # x값을 datetime으로 변경
+        xts = [datetime.datetime.timestamp(i) for i in xt_]                # 위 값을 다시 timestamp(float type)로 변환
         # print('xt:$$', str(round(xts[0], 2)))
         xtick_ = []
         stime = xts[0]
@@ -619,9 +619,9 @@ class Mywindow(QMainWindow, form_class):
 
         self.new_window = NewWindow(self.x_pos_nw, self.code_data)
         if event.xdata < 25:
-            self.new_window.move(1200,5)
+            self.new_window.move(1200, 5)
         else:
-            self.new_window.move(10,5)
+            self.new_window.move(10, 5)
 
         self.new_window.show()
 

@@ -1,11 +1,22 @@
+import sys
 import datetime
 import sqlite3
 import time
 import pandas as pd
-import mplfinance as mpf
 import numpy as np
 from kiwoom import Kiwoom
+from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
+from PyQt5 import QtGui, uic
+import mplfinance as mpf
+from mplfinance.original_flavor import candlestick2_ohlc
+from matplotlib import gridspec
+import matplotlib.ticker as ticker
+import matplotlib.pyplot as plt
+
+# 한글폰트 깨짐방지
+plt.rc('font', family='Malgun Gothic')
+plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
 
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
@@ -83,16 +94,18 @@ class BollingerTesting:
             df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
             df_day = df_day[['open', 'high', 'low', 'close', 'volume']]
 
-            df_day['volume_mean20'] = round(df_day['volume'].rolling(window=20).mean(), 0)
+            df_day['volume_mean20'] = round(df_day['volume'].rolling(window=20).mean())
             df_day['volume_ratio'] = round(df_day['volume'] / df_day['volume_mean20'], 1)
-            df_day['종고저평균'] = round((df_day['close'] + df_day['high'] + df_day['low']) / 3, 0)
-            df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
-            df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
-            df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
+            df_day['종고저평균'] = round((df_day['close'] + df_day['high'] + df_day['low']) / 3)
+            df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean())  # 밴드기준선
+            df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2)
+            df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2)
             df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
             df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
+
+            print('type', type(df_day['volume_mean20'][0]))
 
             # 종목별 대상기간을 설정하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
@@ -101,12 +114,6 @@ class BollingerTesting:
             # if i == 10:
             #     break
 
-            # self.drawPlot(df_day)
-            # self.drawPlot2(df_day)
-            # self.drawPlot3(df_day)
-            # self.drawPlot4(df_day)
-            # break
-
         # print("소요시간", time.time() - starttime)
 
     def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
@@ -114,10 +121,10 @@ class BollingerTesting:
         def _mean20_cal(data, chl_avrg_list):
             chl_list = chl_avrg_list.copy()
             chl_list.append(data)
-            mean20 = round(np.mean(chl_list), 0)
+            mean20 = round(np.mean(chl_list))
             std20 = np.std(chl_list)
-            upperB = round((mean20 + std20 * 2), 0)
-            lowerB = round((mean20 - std20 * 2), 0)
+            upperB = round((mean20 + std20 * 2))
+            lowerB = round((mean20 - std20 * 2))
 
             return mean20, upperB, lowerB
 
@@ -196,16 +203,6 @@ class BollingerTesting:
                         # print('type', type(int(df_day.at[idx, 'volume_mean20'])), type(df_min.at[m_idx, 'cum_volume']))
                         break   # 첫돌파만 매수, 나머지는 pass
 
-#  bollinger_deal DB애서 data를 가져와서 tableWidget 출력 및 그래프 출력
-import sys
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt
-from PyQt5 import QtGui, uic
-import mplfinance as mpf
-# form_class =
-from matplotlib import gridspec
-import matplotlib.pyplot as mp
-
 
 # class PointWindow(QMainWindow, form_class):
 class PointWindow(QMainWindow):
@@ -213,13 +210,11 @@ class PointWindow(QMainWindow):
         super(PointWindow, self).__init__()
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
-        # df = df[]
-
         column_count = len(df.columns)
         row_count = len(df)
         self.setGeometry(100, 100, 1800, 900)
         self.table = QTableWidget(self)
-        self.table.setGeometry(0, 0, 1500, 900)
+        self.table.setGeometry(0, 0, 1650, 900)
 
         self.table.setRowCount(row_count)
         self.table.setColumnCount(column_count)
@@ -227,9 +222,12 @@ class PointWindow(QMainWindow):
         # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setHorizontalHeaderLabels(df.columns)
         self.table.setSortingEnabled(True)
+        self.table.horizontalHeader().setFont(QtGui.QFont("맑은 고딕", 11))
+        stylesheet = "::section{Background-color:rgb(190,1,1,30)}"
+        self.table.horizontalHeader().setStyleSheet(stylesheet)
         self.table.setFont(QtGui.QFont("맑은 고딕", 10))
         for i in range(2, 15):
-            self.table.setColumnWidth(i, 90)
+            self.table.setColumnWidth(i, 100)
         self.table.setColumnWidth(6, 110)
 
         for i, val in enumerate(df.values):
@@ -238,20 +236,15 @@ class PointWindow(QMainWindow):
                 item = None
                 if type(val[col]) == str:
                     item = QTableWidgetItem(data)
-                    # self.table.setItem(i, col, item)
                     item.setTextAlignment(int(Qt.AlignCenter) | int(Qt.AlignVCenter))
 
                 elif type(val[col]) == float or type(val[col]) == int:
-                    # np.set_printoptions(precision=6, suppress=True)
-                    # print('float or int 맞다')
                     item = QTableWidgetItem()
                     item.setData(Qt.DisplayRole, data)
-                    # self.table.setItem(i, col, item)
                     item.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table.setItem(i, col, item)
-                # pd.options.display.float_format = '{:.5f}'.format
         self.table.cellClicked.connect(self.cell_clicked)
-        self.show()
+        # self.show()
 
     def cell_clicked(self, row):
         print('row', row)
@@ -269,10 +262,8 @@ class PointWindow(QMainWindow):
         end = str(end.strftime("%Y%m%d"))
         # print('start', start, type(start))
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db")
-        df_day = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 < {end} ORDER BY 일자",
-                             con, index_col='일자', parse_dates='일자')
-        # df_day['일자'] = pd.to_datetime(df_day['일자'])
-        # df_day = df_day.reset_index(drop=True).set_index('일자')
+        df_day = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 <= {end} "
+                             f"ORDER BY 일자", con, index_col='일자', parse_dates='일자')
         df_day.index.name = 'date'
         df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
         df_day = df_day[['open', 'high', 'low', 'close', 'volume', 'amount']]
@@ -283,123 +274,88 @@ class PointWindow(QMainWindow):
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
 
-        # print('df_day', df_day)
+        self.dayChart(df_day, tdate)  # tdate ;  2021-09-16 09:09:00 형식
 
-        # self.drawPlot2(df_day)
-        # self.drawPlot3(df_day)
-        self.drawPlot4(df_day)
-        """
-        # 아래부분은 정상작동
-        colorset = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
-        s = mpf.make_mpf_style(base_mpf_style='default', marketcolors=colorset)
-        adp = mpf.make_addplot(day_df['밴드상단'])
-        adp2 = mpf.make_addplot(day_df['밴드기준선'])
-        adp3 = mpf.make_addplot(day_df['밴드하단'])
-        # adp4 = mpf.make_addplot(day_df['upper'])
-        mpf.plot(day_df, type='candle', volume=True, addplot=[adp, adp2, adp3],
-                 vlines=dict(vlines=tdate, colors='y', linewidths=5, alpha=0.4),
-                 title=f'DAY_CHART[{sdate} bollinger upper over]',
-                 style=s, figscale=2.4, tight_layout=True)
-        """
+    # 구 mpl_finace를 이용하여 그리는 candle차트
+    def dayChart(self, df_day, tdate):
+        # print('type', type(df_day['volume'][0]))
+        # print('tdate', tdate, '\n', df_day.index)
+        indexlist = df_day.index.tolist()
+        print('indexlist', indexlist)
+        # if tdate.strftime("%Y-%m-%d") in df_day.index:
+        #     print("있다")
+        #     print(df_day.index)
+        # else:
+        #     print("없다")
 
-    def drawPlot(self, df_day):
-        colorSet = mpf.make_marketcolors(up='tab:red', down='tab:blue', volume='tab:blue')
-        s = mpf.make_mpf_style(base_mpf_style='default', marketcolors=colorSet)
-
-        adp = mpf.make_addplot(df_day[['밴드상단', '밴드기준선', '밴드하단']])
-        mpf.plot(df_day, type='candle', volume=True, title='DAY_CHART',
-                 addplot=adp, style=s, figscale=2.4, tight_layout=True)
-
-    def drawPlot2(self, df_day):
-        fig = mpf.figure(style='default', figsize=(7, 8))
-        ax1 = fig.add_subplot(2, 1, 1)
-        ax2 = fig.add_subplot(2, 1, 2)
-        mpf.plot(df_day, ax=ax1, volume=ax2)
-        fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
-        mpf.show()
-
-    def drawPlot3(self, df_day):
-        fig = mpf.figure(figsize=(12, 8))
-        ax1 = fig.add_subplot(2, 2, 1, style='yahoo')
-        ax2 = fig.add_subplot(2, 2, 2, style='blueskies')
-
-        s = mpf.make_mpf_style(base_mpl_style='fast', base_mpf_style='nightclouds')
-        ax3 = fig.add_subplot(2, 2, 3, style=s)
-        ax4 = fig.add_subplot(2, 2, 4, style='starsandstripes')
-
-        mpf.plot(df_day, ax=ax1, axtitle='blueskies', xrotation=15)
-        mpf.plot(df_day, type='candle', ax=ax2, axtitle='yahoo', xrotation=15)
-        mpf.plot(df_day, ax=ax3, type='candle', axtitle='nightclouds')
-        mpf.plot(df_day, type='candle', ax=ax4, axtitle='starsandstripes')
-        fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
-        mpf.show()
-
-    def drawPlot4(self, df_day):
-        print(type(df_day['volume'][0]))
-        # fig = mpf.figure(style='blueskies', figsize=(15, 10))
-        fig = mpf.figure(style='default', figsize=(15, 10))
+        fig = plt.figure(figsize=(15, 10))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
-                               height_ratios=[2, 1],
+                               height_ratios=[3, 1],
                                width_ratios=[20]
                                )
-        fig.subplots_adjust(left=0.05, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
+        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
 
         ax1 = fig.add_subplot(gs[0])
-        # ax11 = ax1.twinx()
-        ax2 = fig.add_subplot(gs[1])
+        ax2 = fig.add_subplot(gs[1], sharex=ax1)
 
-        ap = mpf.make_addplot(df_day[['밴드상단', '밴드기준선', '밴드하단']], ax=ax1)
-        mc = mpf.make_marketcolors(up='r', down='b',
-                                   # edge='white',   # 'lime',
-                                   wick={'up': 'r', 'down': 'b'},
-                                   volume='gray',
-                                   ohlc='black',
-                                   )
-        """
-         'candle_width': 0.525,
-         'line_width': 1.3,
-         'ohlc_linewidth': 0.9583333333333334,
-         'ohlc_ticksize': 0.35,
-         'volume_linewidth': 0.65,
-         'volume_width': 0.9533333333333333}
-        """
+        day_list = range(len(df_day))
+        # day_list = df_day.index
+        name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index) if i % 5 == 0]
 
-        s = mpf.make_mpf_style(marketcolors=mc)
+        ax1.plot(day_list, df_day['밴드상단'], color='r', linewidth=2)
+        ax1.plot(day_list, df_day['밴드기준선'], color='y', linewidth=2)
+        ax1.plot(day_list, df_day['밴드하단'], color='b', linewidth=2)
 
-        # mpf.plot(df_day, ax=ax1, volume=ax2, addplot=ap, xrotation=10, type='candle', style=s,
-        mpf.plot(df_day, ax=ax1, volume=ax2, xrotation=10, type='candle', style=s,
-                 # update_width_config=dict(candle_linewidth=0.1, candle_width=0.8, volume_width=0.8))
-                 update_width_config=dict(candle_linewidth=0.8, candle_width=0.8, volume_width=0.8, line_width=1.5))
-        ax11 = ax1.twinx()
-        # mp.plot(ax=ax11, df_day['밴드상단'])
+        candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
+                          df_day['close'], width=0.8,
+                          colorup='r', colordown='b')
 
-        # fig.canvas.mpl_connect("button_press_event", self.clicked_graph)  # <= 이렇게 하면 마우스버튼을 클릭하면 동작하게 된다.
+        ax1.tick_params(axis='x', top=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
+        ax1.grid(True, which='major', color='gray', linewidth=0.2)
+
+        ax2.bar(day_list, df_day['volume'])
+        ax2.set_xticks(day_list)
+        ax2.set_xticklabels(name_list, rotation=90)  # 위 넉줄 코딩을 한줄에 했다.
+        ax2.xaxis.set_major_locator(ticker.MultipleLocator(5))
+        ax2.xaxis.set_minor_locator(ticker.MultipleLocator(1))
+        ytick_ = [int(y/1000) for y in df_day['volume']]
+        ax2.set_yticklabels(ytick_)
+        ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
+        ax2.grid(True, which='major', color='gray', linewidth=0.2)
+
         # fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
-        mpf.show()
+        # fig.canvas.mpl_connect("figure_leave_event", self.notify_event)
+        # ax1.text(100, 15000, 'DEAL****', fontsize=20)
+        ax1.annotate('Annotate**', (100, 15000), fontsize=20)
+
+        # plt.show()
+        fig.show()
+
+        # print('df_day', df_day)
+
+    def notify_event(self, event):
+        if event.xdata == None:
+            # print("None")
+            return
+
+        print('event', event)
+        # print('x, y', event.x, event.y)
 
     def clicked_graph(self, event):
         # 여기서 일봉차트의 클릭한 날짜의 그래프를 그린다.
         print('event', event)
-
-    def notify_event(self, event):
-        if event.xdata == None:
-            print("None")
-            return
-        print('notify', event)
+        print('x, y', event.x, event.y)
 
     def hogaUnit(self):
 
         table_list = self.sqlTableList(DB_KOSDAQ_DAY)
         print('table_list', table_list)
 
-    def bringDB(self, sqlDB, table):
-        con =sqlite3.connect(sqlDB)
-        self.df_day = pd.read_sql(f"SELECT * FROM '{table}' WHERE ")
-
 
 if __name__ == '__main__':
     # btest = BollingerTesting()
     app = QApplication(sys.argv)
     pwindow = PointWindow()
+    pwindow.show()
     app.exec_()
