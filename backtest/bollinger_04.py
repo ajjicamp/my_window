@@ -47,6 +47,7 @@ class BollingerTesting:
                                              '직전V평균', 'V증가율', '밴드상단', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
+
         kiwoom = Kiwoom()
         df_kosdaq_jisu = kiwoom.block_request('opt20006', 업종코드='101', 기준일자='20210930', output='업종일봉조회', next=0)
         df_kosdaq_jisu = df_kosdaq_jisu[['일자', '시가', '고가', '저가', '현재가', '거래량', '거래대금']]
@@ -249,13 +250,13 @@ class PointWindow(QMainWindow):
     def cell_clicked(self, row):
         print('row', row)
         code = self.table.item(row, 0).text()
-        sdate = self.table.item(row, 1).text()
+        sdate = self.table.item(row, 1).text()  # # sdate ;  202109160909 형식
         upper = self.table.item(row, 8).text()
         upper = float(upper)
 
         # 일봉차트 그리기
-        tdate = pd.to_datetime(sdate)
-        # print(sdate)
+        tdate = pd.to_datetime(sdate[:8])
+        print('tdate', tdate)
         start = tdate - datetime.timedelta(days=180)
         end = tdate + datetime.timedelta(days=20)
         start = str(start.strftime("%Y%m%d"))
@@ -274,14 +275,14 @@ class PointWindow(QMainWindow):
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
 
-        self.dayChart(df_day, tdate)  # tdate ;  2021-09-16 09:09:00 형식
+        self.dayChart(df_day, tdate)  # tdate ;  2021-09-16 형식
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
     def dayChart(self, df_day, tdate):
         # print('type', type(df_day['volume'][0]))
         # print('tdate', tdate, '\n', df_day.index)
         indexlist = df_day.index.tolist()
-        print('indexlist', indexlist)
+        # print('indexlist', indexlist)
         # if tdate.strftime("%Y-%m-%d") in df_day.index:
         #     print("있다")
         #     print(df_day.index)
@@ -306,6 +307,8 @@ class PointWindow(QMainWindow):
         ax1.plot(day_list, df_day['밴드상단'], color='r', linewidth=2)
         ax1.plot(day_list, df_day['밴드기준선'], color='y', linewidth=2)
         ax1.plot(day_list, df_day['밴드하단'], color='b', linewidth=2)
+
+        print('밴드상단', df_day.at[tdate, '밴드상단'])
 
         candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
                           df_day['close'], width=0.8,
