@@ -13,6 +13,9 @@ from mplfinance.original_flavor import candlestick2_ohlc
 from matplotlib import gridspec
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
+from matplotlib.artist import Artist
+
+from threading import Timer
 
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
@@ -44,7 +47,7 @@ class BollingerTesting:
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
         self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전V평균', 'V증가율', '밴드상단', '고가', '종가',
+                                             '직전V평균', 'V증가율', '밴드상단', '분봉밴드상단', '시가', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
 
@@ -106,7 +109,7 @@ class BollingerTesting:
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            print('type', type(df_day['volume_mean20'][0]))
+            # print('type', type(df_day['volume_mean20'][0]))
 
             # 종목별 대상기간을 설정하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
@@ -195,7 +198,10 @@ class BollingerTesting:
                                                                profit, profit_per,
                                                                int(df_day.at[idx, 'volume_mean20']),
                                                                df_day.at[idx, 'volume_ratio'],
-                                                               df_day.at[idx, '밴드상단'], df_day.at[idx, 'high'],
+                                                               df_day.at[idx, '밴드상단'],
+                                                               df_min.at[df_min.index[-1], 'day_upperB'],
+                                                               df_day.at[idx, 'open'],
+                                                               df_day.at[idx, 'high'],
                                                                df_day.at[idx, 'close'],
                                                                df_min.at[m_idx, 'cum_volume'],
                                                                df_min.at[m_idx, 'volume_ratio'],
@@ -209,6 +215,7 @@ class BollingerTesting:
 class PointWindow(QMainWindow):
     def __init__(self):
         super(PointWindow, self).__init__()
+        self.text = None
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
         column_count = len(df.columns)
@@ -248,15 +255,17 @@ class PointWindow(QMainWindow):
         # self.show()
 
     def cell_clicked(self, row):
-        print('row', row)
+        # print('row', row)
         code = self.table.item(row, 0).text()
-        sdate = self.table.item(row, 1).text()  # # sdate ;  202109160909 형식
-        upper = self.table.item(row, 8).text()
-        upper = float(upper)
+        sdate = self.table.item(row, 1).text()  # #  ;  202109160909 형식
+        buy_price = float(self.table.item(row, 2).text())
+
+        # upper = self.table.item(row, 8).text()
+        # upper = float(upper)
 
         # 일봉차트 그리기
         tdate = pd.to_datetime(sdate[:8])
-        print('tdate', tdate)
+        print('tdate', tdate, type(tdate))
         start = tdate - datetime.timedelta(days=180)
         end = tdate + datetime.timedelta(days=20)
         start = str(start.strftime("%Y%m%d"))
@@ -275,19 +284,10 @@ class PointWindow(QMainWindow):
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
 
-        self.dayChart(df_day, tdate)  # tdate ;  2021-09-16 형식
+        self.dayChart(df_day, tdate, buy_price)  # tdate ;  2021-09-16 형식
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
-    def dayChart(self, df_day, tdate):
-        # print('type', type(df_day['volume'][0]))
-        # print('tdate', tdate, '\n', df_day.index)
-        indexlist = df_day.index.tolist()
-        # print('indexlist', indexlist)
-        # if tdate.strftime("%Y-%m-%d") in df_day.index:
-        #     print("있다")
-        #     print(df_day.index)
-        # else:
-        #     print("없다")
+    def dayChart(self, df_day, tdate, buy_price):
 
         fig = plt.figure(figsize=(15, 10))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
@@ -327,23 +327,40 @@ class PointWindow(QMainWindow):
         ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
 
-        # fig.canvas.mpl_connect("motion_notify_event", self.notify_event)
-        # fig.canvas.mpl_connect("figure_leave_event", self.notify_event)
-        # ax1.text(100, 15000, 'DEAL****', fontsize=20)
-        ax1.annotate('Annotate**', (100, 15000), fontsize=20)
+        x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
+        y_ = buy_price
+        # print('inum', inum)
 
+        ax1.annotate(f'매수:{str(buy_price)}', (x_, y_), xytext=(x_ - 20, y_),
+                     arrowprops=dict(facecolor='green', shrink=0.05),
+                     fontsize=20)
+
+        def notify_event(event):
+            print('text', self.text)
+            if self.text is not None:
+                Artist.remove(self.text)
+
+            if event.inaxes == ax1:
+                # for txt in ax1.texts:
+                #     txt.set_visible(False)
+                    # del txt
+                print(event.xdata, event.ydata)
+                xv = round(event.xdata)
+                if (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
+                    # fig.canvas.flush_events()
+                    text = f"{df_day.index[xv].strftime('%Y-%m-%d')} \n {df_day['open'][xv]} \n "  \
+                           f"{df_day['high'][xv]}"
+                    self.text = ax1.text(event.xdata, event.ydata, text)
+                    fig.canvas.draw()
+                else:
+                    for txt in ax1.texts:
+                        txt.set_visible(False)
+
+        fig.canvas.mpl_connect("motion_notify_event", notify_event)
         # plt.show()
         fig.show()
 
         # print('df_day', df_day)
-
-    def notify_event(self, event):
-        if event.xdata == None:
-            # print("None")
-            return
-
-        print('event', event)
-        # print('x, y', event.x, event.y)
 
     def clicked_graph(self, event):
         # 여기서 일봉차트의 클릭한 날짜의 그래프를 그린다.
