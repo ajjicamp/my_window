@@ -47,10 +47,41 @@ class BollingerTesting:
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
         self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전V평균', 'V증가율', '밴드상단', '분봉밴드상단', '시가', '고가', '종가',
+                                             '직전V평균', 'V증가율', '밴드상단', '시가', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
+        # 키움에서 업종지수 가져옴
+        # self.market_jisu()
 
+        # sqlite3에서 업종지수를 읽어와서  DATAFRAME에 저장; '익일시가' 컬럼을 추가 입력
+        con = sqlite3.connect("market_jisu.db")
+        self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
+        self.df_kosdaq_jisu['익일시가'] = self.df_kosdaq_jisu['open'].shift(-1)
+        # print('코스닥지수\n', self.df_kosdaq_jisu)
+        con.close()
+
+        # sqlite3 db에서 코스닥 일봉데이터의 table_list를 가져와서 list에 저장
+        con = sqlite3.connect(DB_KOSDAQ_DAY)
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        table_list = [v[0] for v in cur.fetchall()]
+        con.close()
+
+        # 종목별 시물레이션 시작
+        self.startTrader(table_list)
+        # 시물레이션 결과 요약 출력
+        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
+              f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
+
+        # 시물레이션 결과를 건별로 sqlite3 db에 저장
+        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
+        con = sqlite3.connect('bollinger04.db')
+        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace', index=False)
+        con.commit()
+        con.close()
+
+    def market_jisu(self):
+        # 키움에서 코스피/코스닥업종지수 일봉데이터 가져오기
         kiwoom = Kiwoom()
         df_kosdaq_jisu = kiwoom.block_request('opt20006', 업종코드='101', 기준일자='20210930', output='업종일봉조회', next=0)
         df_kosdaq_jisu = df_kosdaq_jisu[['일자', '시가', '고가', '저가', '현재가', '거래량', '거래대금']]
@@ -58,37 +89,17 @@ class BollingerTesting:
         df_kosdaq_jisu = df_kosdaq_jisu.reset_index(drop=True).set_index('date')
         df_kosdaq_jisu = df_kosdaq_jisu.astype(int)
 
+        # 업종지수 sqlite3에 저장
         con = sqlite3.connect("market_jisu.db")
         df_kosdaq_jisu.to_sql('kosdaq_jisu', con, if_exists='replace')
         con.commit()
         con.close()
 
-        con = sqlite3.connect("market_jisu.db")
-        self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
-        self.df_kosdaq_jisu['익일시가'] = self.df_kosdaq_jisu['open'].shift(-1)
-        # print('코스닥지수\n', self.df_kosdaq_jisu)
-        con.close()
-
-        con = sqlite3.connect(DB_KOSDAQ_DAY)
-        cur = con.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        table_list = [v[0] for v in cur.fetchall()]
-        con.close()
-
-        self.startTrader(table_list)
-        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
-              f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
-
-        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
-        con = sqlite3.connect('bollinger04.db')
-        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace', index=False)
-        con.commit()
-        con.close()
-
+    # 종목별로 시물레이션하기 위하여 sqlite3 db에서 일봉데이터를 가져와서 dataframe에 저장하고 시물레이션 실시
     def startTrader(self, table_list):
-        # # 전종목의 일봉데이터를 가져와서 볼린저밴드지표를 설정하고 시물레이션 시작
         starttime = time.time()
         for i, table in enumerate(table_list):
+            # sqlite3 db에서 종목별 일봉데이터를 가져와서 인덱스, 컬럼조정 및 볼린저밴드 컬럼 추가
             con = sqlite3.connect(DB_KOSDAQ_DAY)
             # cur = con.cursor()
             df_day = pd.read_sql(f"SELECT * FROM '{table}' WHERE 일자 > 20210101 ORDER BY 일자", con,
@@ -102,30 +113,32 @@ class BollingerTesting:
             df_day['volume_ratio'] = round(df_day['volume'] / df_day['volume_mean20'], 1)
             df_day['종고저평균'] = round((df_day['close'] + df_day['high'] + df_day['low']) / 3)
             df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean())  # 밴드기준선
-            df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2)
-            df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2)
+            df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std(ddof=0) * 2)
+            df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std(ddof=0) * 2)
             df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
             df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            # print('type', type(df_day['volume_mean20'][0]))
-
-            # 종목별 대상기간을 설정하여 시물레이션 시작
+            # 대상기간을 압축하여하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
             print(f"시물레이션 중 {table}... {i + 1} / {len(table_list)}")
-            self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
-            # if i == 10:
-            #     break
 
+            self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
         # print("소요시간", time.time() - starttime)
 
     def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
+        chl_avrg_list, chl_list = None, None
 
+        # 분봉에 일봉볼린저밴드를 나타내기 위하여 일봉데어터로부터 기초데어터를 가져와서 계산하는 함수.
         def _mean20_cal(data, chl_avrg_list):
+            # 일봉데이터의 19일치 종고저평균데이터
             chl_list = chl_avrg_list.copy()
+            # 위 데어터에 분봉의 일중 실시간 데이터를 추가(하루데이터).
             chl_list.append(data)
+            # 위 최종 자료를 기준으로 20일 평균 계산(이건 밴드기준선이기도 함)
             mean20 = round(np.mean(chl_list))
+            # 표준편차, 밴드상단, 밴드하단 계산
             std20 = np.std(chl_list)
             upperB = round((mean20 + std20 * 2))
             lowerB = round((mean20 - std20 * 2))
@@ -134,7 +147,7 @@ class BollingerTesting:
 
         for i, idx in enumerate(df_day.index):
 
-            # 대상기간 전데이터는 제외 ---> 시작일부터 20일 전까지의 데이터는 볼린저밴드 계산을 위해서 필요.
+            # 대상기간 전데이터는 제외 ---> 그럼에도 불구하고 시작일부터 20일 전까지의 데이터는 볼린저밴드 계산을 위해서 필요하므로 자료확보.
             if idx < datetime.datetime.strptime('2021-03-01', '%Y-%m-%d'):
                 continue
 
@@ -146,10 +159,10 @@ class BollingerTesting:
                 start = time.time()
 
                 self.count += 1
-                chl_avrg_list = []  # 리스트 초기화
                 xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
 
                 # 분봉차트에 일봉 볼린저밴드를 나타내기 위하여 일봉데이터의 19일치(1일전~20일전) 종고저데이터 리스트를 만듦.
+                chl_avrg_list = []  # 리스트 초기화  # 초기화하지 않으면 계속 누적됨.
                 chl_avrg_list = df_day['종고저평균'].to_list()[i-19:i]   # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
 
                 # 분봉데이터 가져오기
@@ -167,12 +180,16 @@ class BollingerTesting:
                 df_min['highest'] = df_min['high'].cummax()
                 df_min['lowest'] = df_min['low'].cummin()
                 df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
+
+                # 함수 _mean20_cal()
                 df_min['day_mean20'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
                 df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
                 df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
                 df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
                 df_min['next_open'] = df_min['open'].shift(-1)
                 # print('분봉\n', df_min)
+                # print(f"당일상단, 일봉{df_day.at[idx, '밴드상단']}, 분봉{df_min['day_upperB'][-1]}")
+                # input()
 
                 position, buy_price, sell_price = False, 0, 0
                 for mi, m_idx in enumerate(df_min.index):
@@ -199,7 +216,7 @@ class BollingerTesting:
                                                                int(df_day.at[idx, 'volume_mean20']),
                                                                df_day.at[idx, 'volume_ratio'],
                                                                df_day.at[idx, '밴드상단'],
-                                                               df_min.at[df_min.index[-1], 'day_upperB'],
+                                                               # df_min.at[df_min.index[-1], 'day_upperB'],
                                                                df_day.at[idx, 'open'],
                                                                df_day.at[idx, 'high'],
                                                                df_day.at[idx, 'close'],
@@ -215,7 +232,7 @@ class BollingerTesting:
 class PointWindow(QMainWindow):
     def __init__(self):
         super(PointWindow, self).__init__()
-        self.text = None
+        # self.text = None
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
         column_count = len(df.columns)
@@ -336,26 +353,42 @@ class PointWindow(QMainWindow):
                      fontsize=20)
 
         def notify_event(event):
-            print('text', self.text)
-            if self.text is not None:
-                Artist.remove(self.text)
+            print(ax1.texts[0], len(ax1.texts))
+            print(event.x, event.y)
+            if len(ax1.texts) > 1:
+                for txt in ax1.texts:
+                    txt.set_visible(False)
+            ax1.texts[0].set_visible(True)
 
             if event.inaxes == ax1:
-                # for txt in ax1.texts:
-                #     txt.set_visible(False)
-                    # del txt
-                print(event.xdata, event.ydata)
                 xv = round(event.xdata)
+
                 if (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
                     # fig.canvas.flush_events()
-                    text = f"{df_day.index[xv].strftime('%Y-%m-%d')} \n {df_day['open'][xv]} \n "  \
-                           f"{df_day['high'][xv]}"
-                    self.text = ax1.text(event.xdata, event.ydata, text)
-                    fig.canvas.draw()
-                else:
-                    for txt in ax1.texts:
-                        txt.set_visible(False)
+                    text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
+                           f"시가     :{df_day['open'][xv]}\n" \
+                           f"고가     :{df_day['high'][xv]}\n" \
+                           f"저가     :{df_day['low'][xv]}\n" \
+                           f"종가     :{df_day['close'][xv]}\n" \
+                           f"거래량   :{df_day['volume'][xv]}\n" \
+                           f"\n" \
+                           f"[볼린저 밴드]\n" \
+                           f"밴드상단   :{df_day['밴드상단'][xv]}\n" \
+                           f"밴드기준선  :{df_day['밴드기준선'][xv]}\n" \
+                           f"밴드하단   :{df_day['밴드하단'][xv]}\n"
 
+                    if event.y > 550:
+                        yv = df_day['low'][xv] * 0.85
+                    else:
+                        yv = df_day['high'][xv] * 1.00
+
+                else:
+                    text = ''
+                    yv = event.ydata
+                ax1.text(xv+1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
+                fig.canvas.draw()
+
+        # fig.canvas.mpl_connect("button_press_event", notify_event)
         fig.canvas.mpl_connect("motion_notify_event", notify_event)
         # plt.show()
         fig.show()
@@ -374,7 +407,7 @@ class PointWindow(QMainWindow):
 
 
 if __name__ == '__main__':
-    # btest = BollingerTesting()
+    btest = BollingerTesting()
     app = QApplication(sys.argv)
     pwindow = PointWindow()
     pwindow.show()
