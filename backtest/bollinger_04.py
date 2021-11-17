@@ -317,37 +317,35 @@ class PointWindow(QMainWindow):
         ax1 = fig.add_subplot(gs[0])
         ax2 = fig.add_subplot(gs[1], sharex=ax1)
 
-        day_list = range(len(df_day))
-        # day_list = df_day.index
-        name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index) if i % 5 == 0]
+        day_list = range(len(df_day.index))
 
         ax1.plot(day_list, df_day['밴드상단'], color='r', linewidth=2)
         ax1.plot(day_list, df_day['밴드기준선'], color='y', linewidth=2)
         ax1.plot(day_list, df_day['밴드하단'], color='b', linewidth=2)
-
-        print('밴드상단', df_day.at[tdate, '밴드상단'])
-
         candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
                           df_day['close'], width=0.8,
                           colorup='r', colordown='b')
 
+        # ax1 xticklable은 보이지 않도록 함.
         ax1.tick_params(axis='x', top=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
 
         ax2.bar(day_list, df_day['volume'])
         ax2.set_xticks(day_list)
-        ax2.set_xticklabels(name_list, rotation=90)  # 위 넉줄 코딩을 한줄에 했다.
+        # name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index) if i % 5 == 0]
+        name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index)]
+        ax2.set_xticklabels(name_list, rotation=90)
         ax2.xaxis.set_major_locator(ticker.MultipleLocator(5))
         ax2.xaxis.set_minor_locator(ticker.MultipleLocator(1))
+
         ytick_ = [int(y/1000) for y in df_day['volume']]
         ax2.set_yticklabels(ytick_)
         ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
 
+        # annotation 설정
         x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
         y_ = buy_price
-        # print('inum', inum)
-
         ax1.annotate(f'매수:{str(buy_price)}', (x_, y_), xytext=(x_ - 20, y_),
                      arrowprops=dict(facecolor='green', shrink=0.05),
                      fontsize=20)
@@ -407,7 +405,7 @@ class PointWindow(QMainWindow):
 
 
 if __name__ == '__main__':
-    btest = BollingerTesting()
+    # btest = BollingerTesting()
     app = QApplication(sys.argv)
     pwindow = PointWindow()
     pwindow.show()
