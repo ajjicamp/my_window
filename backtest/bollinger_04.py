@@ -51,13 +51,13 @@ class BollingerTesting:
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
         # 키움에서 업종지수 가져옴
-        # self.market_jisu()
+        # self.get_market_jisu()
 
         # sqlite3에서 업종지수를 읽어와서  DATAFRAME에 저장; '익일시가' 컬럼을 추가 입력
-        con = sqlite3.connect("market_jisu.db")
+        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/market_jisu.db")
         self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
         self.df_kosdaq_jisu['익일시가'] = self.df_kosdaq_jisu['open'].shift(-1)
-        # print('코스닥지수\n', self.df_kosdaq_jisu)
+        # print('코스닥지수/n', self.df_kosdaq_jisu)
         con.close()
 
         # sqlite3 db에서 코스닥 일봉데이터의 table_list를 가져와서 list에 저장
@@ -66,6 +66,22 @@ class BollingerTesting:
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         table_list = [v[0] for v in cur.fetchall()]
         con.close()
+
+        # table_list에 대한 종목명 가져오기
+        self.get_code_name(table_list)
+
+        # code_name 텍스트파일 읽어와서 list에 저장
+        self.code_name = {}
+        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'r') as f:
+
+            while True:
+                line = f.readline()
+                code = line[:6]
+                name = line[7:].strip('\n')
+                self.code_name[code] = name
+                if not line:
+                    break
+            print('code_name', self.code_name)
 
         # 종목별 시물레이션 시작
         self.startTrader(table_list)
@@ -80,7 +96,7 @@ class BollingerTesting:
         con.commit()
         con.close()
 
-    def market_jisu(self):
+    def get_market_jisu(self):
         # 키움에서 코스피/코스닥업종지수 일봉데이터 가져오기
         kiwoom = Kiwoom()
         df_kosdaq_jisu = kiwoom.block_request('opt20006', 업종코드='101', 기준일자='20210930', output='업종일봉조회', next=0)
@@ -88,12 +104,25 @@ class BollingerTesting:
         df_kosdaq_jisu.columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
         df_kosdaq_jisu = df_kosdaq_jisu.reset_index(drop=True).set_index('date')
         df_kosdaq_jisu = df_kosdaq_jisu.astype(int)
+        # kiwoom 연결 끊기 해야함.
 
         # 업종지수 sqlite3에 저장
         con = sqlite3.connect("market_jisu.db")
         df_kosdaq_jisu.to_sql('kosdaq_jisu', con, if_exists='replace')
         con.commit()
         con.close()
+
+    def get_code_name(self, code_list):
+        kiwoom = Kiwoom()
+        code_name = []
+        for code in code_list:
+            name = kiwoom.GetMasterCodeName(code)
+            code_name.append(f"{code} {name}")
+
+        print('code_name', code_name)
+        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'w') as f:
+            for c_n in code_name:
+                f.write(c_n+'\n')
 
     # 종목별로 시물레이션하기 위하여 sqlite3 db에서 일봉데이터를 가져와서 dataframe에 저장하고 시물레이션 실시
     def startTrader(self, table_list):
@@ -232,7 +261,20 @@ class BollingerTesting:
 class PointWindow(QMainWindow):
     def __init__(self):
         super(PointWindow, self).__init__()
-        # self.text = None
+
+        # 종목이름을 code_name 텍스트파일에서 읽어와서 list에 저장
+        self.code_name = {}
+        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'r') as f:
+
+            while True:
+                line = f.readline()
+                code = line[:6]
+                name = line[7:].strip('\n')
+                self.code_name[code] = name
+                if not line:
+                    break
+            print('code_name', self.code_name)
+
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
         column_count = len(df.columns)
@@ -268,8 +310,17 @@ class PointWindow(QMainWindow):
                     item.setData(Qt.DisplayRole, data)
                     item.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table.setItem(i, col, item)
+
         self.table.cellClicked.connect(self.cell_clicked)
         # self.show()
+
+    # mouse move event 예시
+    def mouseMoveEvent(self, event):
+        it = self.item(self.rowCount(), 1)
+        it.QToolTip.showText('Insert')
+        self.onHovered()
+
+    def onHovered(self):
 
     def cell_clicked(self, row):
         # print('row', row)
@@ -282,9 +333,9 @@ class PointWindow(QMainWindow):
 
         # 일봉차트 그리기
         tdate = pd.to_datetime(sdate[:8])
-        print('tdate', tdate, type(tdate))
+        # print('tdate', tdate, type(tdate))
         start = tdate - datetime.timedelta(days=180)
-        end = tdate + datetime.timedelta(days=20)
+        end = tdate + datetime.timedelta(days=21)
         start = str(start.strftime("%Y%m%d"))
         end = str(end.strftime("%Y%m%d"))
         # print('start', start, type(start))
@@ -301,23 +352,25 @@ class PointWindow(QMainWindow):
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
 
-        self.dayChart(df_day, tdate, buy_price)  # tdate ;  2021-09-16 형식
+        self.dayChart(code, df_day, tdate, buy_price)  # tdate ;  2021-09-16 형식
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
-    def dayChart(self, df_day, tdate, buy_price):
+    def dayChart(self, code, df_day, tdate, buy_price):
 
-        fig = plt.figure(figsize=(15, 10))
+        fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
                                height_ratios=[3, 1],
                                width_ratios=[20]
                                )
         fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
+        # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=1.01)
 
         ax1 = fig.add_subplot(gs[0])
         ax2 = fig.add_subplot(gs[1], sharex=ax1)
 
         day_list = range(len(df_day.index))
+        # print('day_list', day_list, day_list[0], day_list[-1])
 
         ax1.plot(day_list, df_day['밴드상단'], color='r', linewidth=2)
         ax1.plot(day_list, df_day['밴드기준선'], color='y', linewidth=2)
@@ -325,18 +378,18 @@ class PointWindow(QMainWindow):
         candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
                           df_day['close'], width=0.8,
                           colorup='r', colordown='b')
+        ax1.set_title(f"{self.code_name[code]} 일봉차트", fontsize=20)
 
         # ax1 xticklable은 보이지 않도록 함.
         ax1.tick_params(axis='x', top=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
 
         ax2.bar(day_list, df_day['volume'])
-        ax2.set_xticks(day_list)
-        # name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index) if i % 5 == 0]
+        ax2.set_xticks(range(0, len(df_day.index), 5))
+        ax2.set_xticks(day_list, minor=True)
         name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_day.index)]
+        name_list = [name_list[i] for i in range(0, len(df_day.index), 5)]
         ax2.set_xticklabels(name_list, rotation=90)
-        ax2.xaxis.set_major_locator(ticker.MultipleLocator(5))
-        ax2.xaxis.set_minor_locator(ticker.MultipleLocator(1))
 
         ytick_ = [int(y/1000) for y in df_day['volume']]
         ax2.set_yticklabels(ytick_)
@@ -351,8 +404,8 @@ class PointWindow(QMainWindow):
                      fontsize=20)
 
         def notify_event(event):
-            print(ax1.texts[0], len(ax1.texts))
-            print(event.x, event.y)
+            # print(ax1.texts[0], len(ax1.texts))
+            # print(event.x, event.y)
             if len(ax1.texts) > 1:
                 for txt in ax1.texts:
                     txt.set_visible(False)
@@ -360,8 +413,7 @@ class PointWindow(QMainWindow):
 
             if event.inaxes == ax1:
                 xv = round(event.xdata)
-
-                if (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
+                if (xv < len(df_day)) and (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
                     # fig.canvas.flush_events()
                     text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
                            f"시가     :{df_day['open'][xv]}\n" \
