@@ -15,14 +15,13 @@ import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import logging
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(filename="../log.txt", level=logging.INFO)
 
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
-
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
@@ -48,10 +47,10 @@ class BollingerTesting:
         self.count = 0
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
-        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
-                                             '돌파V', '돌파V배율', '주가상승률', '지수상승률',
-                                             ])
+        # self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
+        #                                      '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
+        #                                      '돌파V', '돌파V배율', '주가상승률', '지수상승률',
+        #                                      ])
         # 키움에서 업종지수 가져옴
         # self.get_market_jisu()
 
@@ -70,7 +69,7 @@ class BollingerTesting:
         con.close()
 
         # table_list에 대한 종목명 가져오기
-        self.get_code_name(table_list)
+        # self.get_code_name(table_list)
 
         # code_name 텍스트파일 읽어와서 list에 저장
         self.code_name = {}
@@ -86,18 +85,48 @@ class BollingerTesting:
             # print('code_name', self.code_name)
 
         # 종목별 시물레이션 시작
-        self.startTrader(table_list)
-        # 시물레이션 결과 요약 출력
-        print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
-              f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
+        for i in np.arange(1.1, 2.6, 0.1):
+            self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
+                                                 '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
+                                                 '돌파V', '돌파V배율', '주가상승률', '지수상승률',
+                                                 ])
 
-        # 시물레이션 결과를 건별로 sqlite3 db에 저장
-        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
-        self.df_deal['체결시간'].head(5)
-        con = sqlite3.connect('bollinger04.db')
-        self.df_deal.to_sql('bollinger_deal', con, if_exists='replace', index=False)
-        con.commit()
-        con.close()
+            df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '총건수', '매수가합계', '순이익합계', '순이익률', 'V증가율',
+                                                  '돌파V배율', '주가상승률', '지수상승률'])
+
+            self.startTrader(table_list, i)
+
+            # 시물레이션 결과 요약 출력
+            # print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
+            #       f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
+
+            # 시물레이션 결과를 건별로 sqlite3 db에 저장
+            self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
+            self.df_deal['체결시간'].head(5)
+            con = sqlite3.connect('bollinger04.db')
+            table_name = f"deal_{str(round(i,1))}"
+            self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
+            con.commit()
+            con.close()
+
+            # deal 결과 요약저장
+            profit_ratio = round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)
+            df_dealProfit.loc[len(df_dealProfit)] = [f"deal_{str(round(i, 1))}",
+                                                     self.df_deal['매수가'].count(),
+                                                     self.df_deal['매수가'].sum(),
+                                                     self.df_deal['순이익'].sum(),
+                                                     profit_ratio,
+                                                     round(self.df_deal['V증가율'].mean(), 1),
+                                                     round(self.df_deal['돌파V배율'].mean(), 1),
+                                                     round(self.df_deal['주가상승률'].mean(), 2),
+                                                     round(self.df_deal['지수상승률'].mean(), 2)
+                                                     ]
+            print('deal결과\n', df_dealProfit)
+
+            con = sqlite3.connect("deal_profit.db")
+            df_dealProfit.to_sql('deal_summary', con, if_exists='append', index=False)
+            con.commit()
+            con.close()
 
     def get_market_jisu(self):
         # 키움에서 코스피/코스닥업종지수 일봉데이터 가져오기
@@ -128,7 +157,7 @@ class BollingerTesting:
                 f.write(c_n+'\n')
 
     # 종목별로 시물레이션하기 위하여 sqlite3 db에서 일봉데이터를 가져와서 dataframe에 저장하고 시물레이션 실시
-    def startTrader(self, table_list):
+    def startTrader(self, table_list, multiple):
         starttime = time.time()
         for i, table in enumerate(table_list):
             # sqlite3 db에서 종목별 일봉데이터를 가져와서 인덱스, 컬럼조정 및 볼린저밴드 컬럼 추가
@@ -156,10 +185,10 @@ class BollingerTesting:
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
             print(f"시물레이션 중 {table}... {i + 1} / {len(table_list)}")
 
-            self.code_trading(table, df_day.loc[period])  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
+            self.code_trading(table, df_day.loc[period], multiple)  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
         # print("소요시간", time.time() - starttime)
 
-    def code_trading(self, table, df_day):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
+    def code_trading(self, table, df_day, multiple):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
         chl_avrg_list, chl_list = None, None
 
         # 분봉에 일봉볼린저밴드를 나타내기 위하여 일봉데어터로부터 기초데어터를 가져와서 계산하는 함수.
@@ -185,7 +214,7 @@ class BollingerTesting:
 
             # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
             if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단'] \
-                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * 1.5:
+                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * multiple:     # multiple = 1.5
 
                 # -----------------------------
                 start = time.time()
