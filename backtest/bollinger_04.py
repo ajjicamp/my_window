@@ -13,9 +13,11 @@ from mplfinance.original_flavor import candlestick2_ohlc
 from matplotlib import gridspec
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
-from matplotlib.artist import Artist
+import logging
 
-from threading import Timer
+logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(filename="../log.txt", level=logging.ERROR)
+# logging.basicConfig(filename="../log.txt", level=logging.INFO)
 
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
@@ -47,7 +49,7 @@ class BollingerTesting:
 
         # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
         self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전V평균', 'V증가율', '밴드상단', '시가', '고가', '종가',
+                                             '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
         # 키움에서 업종지수 가져옴
@@ -90,7 +92,8 @@ class BollingerTesting:
               f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
 
         # 시물레이션 결과를 건별로 sqlite3 db에 저장
-        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%m"))
+        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
+        self.df_deal['체결시간'].head(5)
         con = sqlite3.connect('bollinger04.db')
         self.df_deal.to_sql('bollinger_deal', con, if_exists='replace', index=False)
         con.commit()
@@ -240,12 +243,13 @@ class BollingerTesting:
                         df_kosdaq = self.df_kosdaq_jisu.loc[self.df_kosdaq_jisu.index == idx]
                         jisu_ratio = round((df_kosdaq.at[idx, '익일시가'] - df_kosdaq.at[idx, 'close']) /
                                            df_kosdaq.at[idx, 'close'] * 100, 2)
-                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx, buy_price, sell_price,
+                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx,
+                                                               buy_price, sell_price,
                                                                profit, profit_per,
                                                                int(df_day.at[idx, 'volume_mean20']),
                                                                df_day.at[idx, 'volume_ratio'],
                                                                df_day.at[idx, '밴드상단'],
-                                                               # df_min.at[df_min.index[-1], 'day_upperB'],
+                                                               df_min.at[m_idx, 'day_upperB'],
                                                                df_day.at[idx, 'open'],
                                                                df_day.at[idx, 'high'],
                                                                df_day.at[idx, 'close'],
@@ -253,7 +257,9 @@ class BollingerTesting:
                                                                df_min.at[m_idx, 'volume_ratio'],
                                                                juga_ratio, jisu_ratio,
                                                                ]
-                        # print('type', type(int(df_day.at[idx, 'volume_mean20'])), type(df_min.at[m_idx, 'cum_volume']))
+                        logging.info(f"DealPoint {table} {m_idx} {buy_price} {sell_price} {df_min.at[m_idx, 'day_upperB']} "
+                                     f"{df_day.at[idx, '밴드상단']} {df_day.at[idx, 'close']}")
+
                         break   # 첫돌파만 매수, 나머지는 pass
 
 
@@ -282,7 +288,7 @@ class PointWindow(QMainWindow):
         row_count = len(df)
         self.setGeometry(100, 100, 1800, 900)
         self.table = QTableWidget(self)
-        self.table.setGeometry(0, 0, 1650, 900)
+        self.table.setGeometry(0, 0, 1750, 900)
 
         self.table.setRowCount(row_count)
         self.table.setColumnCount(column_count)
@@ -293,10 +299,12 @@ class PointWindow(QMainWindow):
         self.table.horizontalHeader().setFont(QtGui.QFont("맑은 고딕", 11))
         stylesheet = "::section{Background-color:rgb(190,1,1,30)}"
         self.table.horizontalHeader().setStyleSheet(stylesheet)
-        self.table.setFont(QtGui.QFont("맑은 고딕", 10))
-        for i in range(2, 15):
-            self.table.setColumnWidth(i, 100)
+        self.table.setFont(QtGui.QFont("맑은 고딕", 11))
+        self.table.setAlternatingRowColors(True)
+        for i in range(0, 15):
+            self.table.setColumnWidth(i, 95)
         self.table.setColumnWidth(6, 110)
+        self.table.setColumnWidth(1, 130)
 
         for i, val in enumerate(df.values):
             for col in range(len(df.columns)):
@@ -321,20 +329,15 @@ class PointWindow(QMainWindow):
         it.QToolTip.showText('Insert')
         self.onHovered()
 
-    def cell_clicked(self, row):
-
-        # print('row', row)
+    def cell_clicked(self, row, col):
         code = self.table.item(row, 0).text()
-        sdate = self.table.item(row, 1).text()[:8]  # 202109160909 --> 20210916 형식
+        # print('row', row)
+        deal_time = self.table.item(row, 1).text()  # 202109160909
         buy_price = float(self.table.item(row, 2).text())
         sell_price = float(self.table.item(row, 3).text())
 
-        # upper = self.table.item(row, 8).text()
-        # upper = float(upper)
-
         # 일봉차트 그리기
-        tdate = pd.to_datetime(sdate)
-        # print('tdate', tdate, type(tdate))
+        tdate = pd.to_datetime(deal_time[:8])
         start = tdate - datetime.timedelta(days=160)
         end = tdate + datetime.timedelta(days=40)
         start = str(start.strftime("%Y%m%d"))
@@ -355,14 +358,14 @@ class PointWindow(QMainWindow):
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0)
-        print('거래량20', df_day['거래량20'])
+        df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
+        df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
 
         # 지수차트 가져오기
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/market_jisu.db")
         df_jisu = pd.read_sql(f"SELECT * FROM kosdaq_jisu WHERE date > {start} and date <= {end} "
                               f"ORDER BY date", con, index_col='date', parse_dates='date')
         con.close()
-        print('지수df', df_jisu)
 
         '''
         # 그래프를 그리기 위하여 df_day 와 df_jisu의 길이가 일치하지 않으면 df_jisu의 index를 수정
@@ -374,10 +377,11 @@ class PointWindow(QMainWindow):
                     print("값이 없음=====================", idx)
         '''
 
-        self.dayChart(code, df_day, tdate, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
+        self.dayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
-    def dayChart(self, code, df_day, tdate, buy_price, sell_price, df_jisu):
+    def dayChart(self, code, df_day, deal_time, buy_price, sell_price, df_jisu):
+        tdate = pd.to_datetime(deal_time[:8])
 
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
@@ -405,7 +409,7 @@ class PointWindow(QMainWindow):
         candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
                           df_day['close'], width=0.8,
                           colorup='r', colordown='b')
-        ax1.set_title(f"{self.code_name[code]} 일봉차트", fontsize=20)
+        ax1.set_title(f"{self.code_name[code]}({code}) 일봉차트", fontsize=20)
         ax1.legend(['B밴드상단', 'B밴드기준선', 'B밴드하단'])
         # ax1 xticklable은 보이지 않도록 함.
         ax1.tick_params(axis='x', top=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
@@ -424,7 +428,9 @@ class PointWindow(QMainWindow):
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
 
         # annotation 설정
-        x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
+        # x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
+        x_ = df_day.index.to_list().index(tdate)
+        print('x_', x_)
         y_ = buy_price
         ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 20, y_),
                      arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
@@ -469,21 +475,20 @@ class PointWindow(QMainWindow):
                     yv = event.ydata
                 ax1.text(xv+1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
                 fig.canvas.draw()
-
         fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
 
         def mouse_click_event(event):
             i = round(event.xdata)
-            date = df_day.index[i].strftime("%Y%m%d")
+            date = df_day.index[i].strftime("%Y%m%d")  # 2021-04-06 00:00:00 날짜type --> 20210406
             chl19 = df_day['종고저평균'].to_list()[i - 19:i]  # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
-            self.minuteChartDraw(code, date, buy_price, sell_price, df_day['거래량20'][i], chl19)
-            print('분봉날짜', date)
+            self.minuteChart(code, date, buy_price, sell_price, df_day['거래량20'][i],
+                             chl19, deal_time, df_day['전일밴드폭'][i])
+            # print('분봉날짜', date)
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
+
         fig.show()
 
-        # print('df_day', df_day)
-
-    def minuteChartDraw(self, code, date, buy_price, sell_price, volume20, chl19):
+    def minuteChart(self, code, date, buy_price, sell_price, volume20, chl19, deal_time, BWidth_1):
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db")
         df_min = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
                              con, index_col='체결시간', parse_dates='체결시간')
@@ -518,29 +523,28 @@ class PointWindow(QMainWindow):
         df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl19)[1])
         df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl19)[2])
         df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
+        df_min['bWidth_ratio'] = round(df_min['day_bandWidth'] / BWidth_1, 2)
         df_min['next_open'] = df_min['open'].shift(-1)
 
         # print(df_min)
 
         fig = plt.figure(figsize=(15, 9))
-        gs = gridspec.GridSpec(nrows=2,  # row 몇 개
+        gs = gridspec.GridSpec(nrows=3,  # row 몇 개
                                ncols=1,  # col 몇 개
-                               height_ratios=[3, 1],
+                               height_ratios=[1, 6, 2],
                                width_ratios=[20]
                                )
-        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
-        # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=1.01)
+        # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
+        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.00)
 
-        ax1 = fig.add_subplot(gs[0])
-        ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        ax1 = fig.add_subplot(gs[1])
+        ax2 = fig.add_subplot(gs[2], sharex=ax1)
+        ax0 = fig.add_subplot(gs[0], sharex=ax1)
 
         min_list = range(len(df_min.index))
         # print('min_list', min_list, min_list[0], min_list[-1])
 
         ax1.plot(min_list, df_min['day_upperB'], color='r', linewidth=1)
-        # ax1.plot(min_list, df_min['day_upperB'], color='r', linewidth=2)
-        # ax1.plot(min_list, df_min['day_mean20'], color='y', linewidth=2)
-        # ax1.plot(min_list, df_min['day_lowerB'], color='b', linewidth=2)
 
         # 코스닥지수차트 그리기
         # ax11 = ax1.twinx()
@@ -549,17 +553,25 @@ class PointWindow(QMainWindow):
         candlestick2_ohlc(ax1, df_min['open'], df_min['high'], df_min['low'],
                           df_min['close'], width=0.8,
                           colorup='r', colordown='b')
-        ax1.set_title(f"{self.code_name[code]} 분봉차트", fontsize=20)
-        # ax1.legend(['B밴드상단', 'B밴드기준선', 'B밴드하단'])
+
+        ax0.set_title(f"{self.code_name[code]} 분봉차트 ({date})", fontsize=20)
         ax1.legend(['일봉B밴드상단'])
-        # ax1 xticklable은 보이지 않도록 함.
-        ax1.tick_params(axis='x', top=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
+        ax1.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
+        # ax1.xaxis.set_visible(False)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
+
+        ax0.plot(min_list, df_min['bWidth_ratio'], color='c', linewidth=1)
+        ax0.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
+        # ax0.xaxis.set_visible(False)
+        ax0.legend(['밴드상단확장률'])
+        ax0.axhline(y=1.5, color='r', linewidth=0.5)
+        ax0.grid(True, which='major', color='gray', linewidth=0.2)
+
 
         ax2.bar(min_list, df_min['volume'])
         ax2.set_xticks(range(0, len(df_min.index), 5))
         ax2.set_xticks(min_list, minor=True)
-        name_list = [v.strftime("%y%m%d") for i, v in enumerate(df_min.index)]
+        name_list = [v.strftime("%H:%M") for i, v in enumerate(df_min.index)]
         name_list = [name_list[i] for i in range(0, len(df_min.index), 5)]
         ax2.set_xticklabels(name_list, rotation=90)
 
@@ -567,19 +579,60 @@ class PointWindow(QMainWindow):
         ax2.set_yticklabels(ytick_)
         ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
+        ax22 = ax2.twinx()
+        ax22.plot(min_list, df_min['volume_ratio'], color='r', linewidth=1)
+        ax22.legend(['거래량증가배율'])
 
-        '''
-        # annotation 설정
-        x_ = [i for i, idx in enumerate(df_min.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
-        y_ = buy_price
-        ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 20, y_),
-                     arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
-                     fontsize=12, bbox=dict(facecolor='r', alpha=0.2))
-        y2_ = sell_price
-        ax1.annotate(f'매도:{str(int(sell_price))}', (x_ + 1, y2_), xytext=(x_ + 10, y2_ * 1.05),
-                     arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
-                     fontsize=12, bbox=dict(facecolor='b', alpha=0.2))
-        '''
+        # deal 날짜를 선택하면 매수/매도 타점을 annotate함
+        if date == deal_time[:8]:
+            # print('시간비교', df_min.index.to_list(), pd.to_datetime(deal_time))
+            x_ = df_min.index.to_list().index(pd.to_datetime(deal_time))
+            # x_ = [i for i, idx in enumerate(df_min.index) if idx.strftime("%Y%m%d%H%M") == deal_time][0]
+            y_ = buy_price
+            ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 50, y_),
+                         arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
+                         fontsize=12, bbox=dict(facecolor='r', alpha=0.2))
+        else:
+            ax1.text(0.5, 0.97, f'매수일시: {deal_time}', bbox=dict(facecolor='y', alpha=0.5),
+                     horizontalalignment='center',
+                     verticalalignment='center', fontsize=12, transform=ax1.transAxes)
+        fig.canvas.draw()
+
+        def motion_notify_event(event):
+            logging.info(f"592r, x좌표={event.xdata}, {event.inaxes == ax1}")
+            if len(ax1.texts) > 2:
+                for txt in ax1.texts:
+                    txt.set_visible(False)
+            ax1.texts[0].set_visible(True)
+
+            if event.inaxes == ax1:
+                logging.info(f"x좌표={event.xdata}")
+                xv = round(event.xdata)
+                if (xv < len(df_min)) and (event.ydata <= df_min['high'][xv]) and (event.ydata >= df_min['low'][xv]):
+                    # fig.canvas.flush_events()
+                    text = f"시간     :{df_min.index[xv].strftime('%H:%M')}\n" \
+                           f"시가     :{df_min['open'][xv]}\n" \
+                           f"고가     :{df_min['high'][xv]}\n" \
+                           f"저가     :{df_min['low'][xv]}\n" \
+                           f"종가     :{df_min['close'][xv]}\n" \
+                           f"거래량   :{df_min['volume'][xv]}\n" \
+                           f"\n" \
+                           f"[볼린저 밴드]\n" \
+                           f"밴드상단   :{int(df_min['day_upperB'][xv])}\n" \
+                           f"돌파B배율  :{df_min['bWidth_ratio'][xv]}"
+
+                    if event.y > 550:
+                        yv = df_min['low'][xv] * 1.00
+                    else:
+                        yv = df_min['high'][xv] * 1.00
+
+                else:
+                    text = ''
+                    yv = event.ydata
+                ax1.text(xv+1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
+                fig.canvas.draw()
+        fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
+
         fig.show()
 
     def hogaUnit(self):
@@ -589,7 +642,7 @@ class PointWindow(QMainWindow):
 
 
 if __name__ == '__main__':
-    # btest = BollingerTesting()
+    btest = BollingerTesting()
     app = QApplication(sys.argv)
     pwindow = PointWindow()
     pwindow.show()
