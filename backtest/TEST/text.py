@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
 
 
-
 class TextShow:
     # def __init__(self, redraw=False, event=None):
     def __init__(self):

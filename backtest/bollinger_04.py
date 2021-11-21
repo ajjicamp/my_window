@@ -85,7 +85,8 @@ class BollingerTesting:
             # print('code_name', self.code_name)
 
         # 종목별 시물레이션 시작
-        for i in np.arange(1.1, 2.6, 0.1):
+        # for i in np.arange(1.1, 2.6, 0.1):
+        for i in np.arange(2.6, 4.1, 0.1):
             self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
                                                  '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
                                                  '돌파V', '돌파V배율', '주가상승률', '지수상승률',
@@ -105,7 +106,8 @@ class BollingerTesting:
             self.df_deal['체결시간'].head(5)
             con = sqlite3.connect('bollinger04.db')
             table_name = f"deal_{str(round(i,1))}"
-            self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
+            # self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
+            self.df_deal.to_sql(table_name, con, if_exists='append', index=False)
             con.commit()
             con.close()
 
@@ -293,9 +295,70 @@ class BollingerTesting:
 
 
 # class PointWindow(QMainWindow, form_class):
-class PointWindow(QMainWindow):
+class DealProfit(QMainWindow):
     def __init__(self):
+        super(DealProfit, self).__init__()
+        db_name = "C:/Users/USER/PycharmProjects/my_window/backtest/deal_profit.db"
+        table_name = 'deal_summary'
+        con = sqlite3.connect(db_name)
+        # print('dbname', db_name)
+        df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
+        con.close()
+        # print('df', df)
+
+        column_count = len(df.columns)
+        row_count = len(df)
+        self.setGeometry(100, 100, 1800, 900)
+        self.table = QTableWidget(self)
+        self.table.setGeometry(0, 0, 1750, 900)
+
+        self.table.setRowCount(row_count)
+        self.table.setColumnCount(column_count)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalHeaderLabels(df.columns)
+        self.table.setSortingEnabled(True)
+        self.table.horizontalHeader().setFont(QtGui.QFont("맑은 고딕", 11))
+        stylesheet = "::section{Background-color:rgb(190,1,1,30)}"
+        self.table.horizontalHeader().setStyleSheet(stylesheet)
+        self.table.setFont(QtGui.QFont("맑은 고딕", 11))
+        self.table.setAlternatingRowColors(True)
+        for i in range(0, 15):
+            self.table.setColumnWidth(i, 95)
+        self.table.setColumnWidth(0, 130)
+
+        for i, val in enumerate(df.values):
+            for col in range(len(df.columns)):
+                data = val[col]
+                item = None
+                if type(val[col]) == str:
+                    item = QTableWidgetItem(data)
+                    item.setTextAlignment(int(Qt.AlignCenter) | int(Qt.AlignVCenter))
+
+                elif type(val[col]) == float or type(val[col]) == int:
+                    item = QTableWidgetItem()
+                    item.setData(Qt.DisplayRole, data)
+                    item.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
+                self.table.setItem(i, col, item)
+        # print('selftable_모체객체', self.table)
+        self.table.cellClicked.connect(self.deal_profit_cell_clicked)
+
+    def deal_profit_cell_clicked(self, row, col):
+        db_name = "C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db"
+        table_name = self.table.item(row, 0).text()
+        # print('table_name', table_name)
+
+        # todo self변수로 넣어야 작동한다. 즉, 단순하게 pointwindow로 해서는 안된다.
+        self.pointwindow = PointWindow(db_name, table_name)
+        self.pointwindow.show()
+
+
+class PointWindow(QWidget):
+    def __init__(self, db_name, table_name):
         super(PointWindow, self).__init__()
+        # print('359진입')
+        self.bWidthMultiple = float(table_name[5:])
+        # print('multiple', self.bWidthMultiple)
 
         # 종목이름을 code_name 텍스트파일에서 읽어와서 list에 저장  ==> 향후에는 utility.py에서 읽어옴.
         self.code_name = {}
@@ -309,10 +372,17 @@ class PointWindow(QMainWindow):
                 if not line:
                     break
             # print('code_name', self.code_name)
-
+        '''
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
         df = pd.read_sql("SELECT * FROM bollinger_deal", con)
         con.close()
+        '''
+        con = sqlite3.connect(db_name)
+        # print('dbname', db_name)
+        df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
+        con.close()
+        # print('df_b4', df)
+
         column_count = len(df.columns)
         row_count = len(df)
         self.setGeometry(100, 100, 1800, 900)
@@ -350,9 +420,9 @@ class PointWindow(QMainWindow):
                 self.table.setItem(i, col, item)
 
         self.table.cellClicked.connect(self.cell_clicked)
-        # self.show()
-
-    # mouse move event 예시
+        # print('self_table 객체', self.table)
+        self.show()
+    # 마우스이벤트 예시
     def mouseMoveEvent(self, event):
         it = self.item(self.rowCount(), 1)
         it.QToolTip.showText('Insert')
@@ -395,16 +465,6 @@ class PointWindow(QMainWindow):
         df_jisu = pd.read_sql(f"SELECT * FROM kosdaq_jisu WHERE date > {start} and date <= {end} "
                               f"ORDER BY date", con, index_col='date', parse_dates='date')
         con.close()
-
-        '''
-        # 그래프를 그리기 위하여 df_day 와 df_jisu의 길이가 일치하지 않으면 df_jisu의 index를 수정
-        if len(df_jisu.index) != len(df_day.index):
-            for idx in df_jisu.index:
-                if idx in df_day.index.values:
-                    print("값이 있음")
-                else:
-                    print("값이 없음=====================", idx)
-        '''
 
         self.dayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
 
@@ -510,14 +570,17 @@ class PointWindow(QMainWindow):
             i = round(event.xdata)
             date = df_day.index[i].strftime("%Y%m%d")  # 2021-04-06 00:00:00 날짜type --> 20210406
             chl19 = df_day['종고저평균'].to_list()[i - 19:i]  # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
-            self.minuteChart(code, date, buy_price, sell_price, df_day['거래량20'][i],
-                             chl19, deal_time, df_day['전일밴드폭'][i])
+            df_min = self.get_minute_data(code, date, df_day['거래량20'][i], chl19, df_day['전일밴드폭'][i])
+            start = 0
+            end = len(df_min) - 1
+            self.draw_minite_chart(df_min, code, date, buy_price, deal_time, start, end)
             # print('분봉날짜', date)
+
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
 
         fig.show()
 
-    def minuteChart(self, code, date, buy_price, sell_price, volume20, chl19, deal_time, BWidth_1):
+    def get_minute_data(self, code, date, volume20, chl19, BWidth_1):
         con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db")
         df_min = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
                              con, index_col='체결시간', parse_dates='체결시간')
@@ -554,9 +617,28 @@ class PointWindow(QMainWindow):
         df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
         df_min['bWidth_ratio'] = round(df_min['day_bandWidth'] / BWidth_1, 2)
         df_min['next_open'] = df_min['open'].shift(-1)
+        # print('df_min', df_min)
 
+        return df_min
         # print(df_min)
 
+    def draw_minite_chart(self, df_min, code, date, buy_price, deal_time, start, end, redraw=False):
+        """
+        :param df_min: 분봉데이터
+        :param code: 종목변호
+        :param date: 일봉차트에서 클릭한 날짜(문자형 210512 스타일)
+        :param buy_price: 매수가
+        :param deal_time: 문자형 2105120934
+        :param start: df_min에 사용할 인덱싱 시작번호
+        :param end: df_min에 사용할 인덱싱 끝번호
+        :param redraw: bool 새로 그리면 True
+        :return:
+        """
+
+        self.start = start
+        self.end = end
+        df_query = df_min.iloc[self.start: self.end]
+        # print('df_query', df_query)
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=3,  # row 몇 개
                                ncols=1,  # col 몇 개
@@ -570,17 +652,13 @@ class PointWindow(QMainWindow):
         ax2 = fig.add_subplot(gs[2], sharex=ax1)
         ax0 = fig.add_subplot(gs[0], sharex=ax1)
 
-        min_list = range(len(df_min.index))
+        min_list = range(len(df_query.index))
         # print('min_list', min_list, min_list[0], min_list[-1])
 
-        ax1.plot(min_list, df_min['day_upperB'], color='r', linewidth=1)
+        ax1.plot(min_list, df_query['day_upperB'], color='r', linewidth=1)
 
-        # 코스닥지수차트 그리기
-        # ax11 = ax1.twinx()
-        # ax11.plot(min_list, df_jisu['close'], color='y', linewidth=1.0, linestyle='solid', alpha=1.0)
-
-        candlestick2_ohlc(ax1, df_min['open'], df_min['high'], df_min['low'],
-                          df_min['close'], width=0.8,
+        candlestick2_ohlc(ax1, df_query['open'], df_query['high'], df_query['low'],
+                          df_query['close'], width=0.8,
                           colorup='r', colordown='b')
 
         ax0.set_title(f"{self.code_name[code]} 분봉차트 ({date})", fontsize=20)
@@ -589,80 +667,101 @@ class PointWindow(QMainWindow):
         # ax1.xaxis.set_visible(False)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
 
-        ax0.plot(min_list, df_min['bWidth_ratio'], color='c', linewidth=1)
+        ax0.plot(min_list, df_query['bWidth_ratio'], color='c', linewidth=1)
         ax0.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
         # ax0.xaxis.set_visible(False)
+        # ax0.axhline(y=1.5, color='r', linewidth=0.5)
+        ax0.axhline(y=self.bWidthMultiple, color='r', linewidth=0.5, label='bWidthMultipl')
         ax0.legend(['밴드상단확장률'])
-        ax0.axhline(y=1.5, color='r', linewidth=0.5)
         ax0.grid(True, which='major', color='gray', linewidth=0.2)
 
-
-        ax2.bar(min_list, df_min['volume'])
-        ax2.set_xticks(range(0, len(df_min.index), 5))
+        ax2.bar(min_list, df_query['volume'])
+        ax2.set_xticks(range(0, len(df_query.index), 5))
         ax2.set_xticks(min_list, minor=True)
-        name_list = [v.strftime("%H:%M") for i, v in enumerate(df_min.index)]
-        name_list = [name_list[i] for i in range(0, len(df_min.index), 5)]
+        name_list = [v.strftime("%H:%M") for i, v in enumerate(df_query.index)]
+        name_list = [name_list[i] for i in range(0, len(df_query.index), 5)]
         ax2.set_xticklabels(name_list, rotation=90)
 
-        ytick_ = [int(y / 1000) for y in df_min['volume']]
+        ytick_ = [int(y / 1000) for y in df_query['volume']]
         ax2.set_yticklabels(ytick_)
         ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
         ax22 = ax2.twinx()
-        ax22.plot(min_list, df_min['volume_ratio'], color='r', linewidth=1)
+        ax22.plot(min_list, df_query['volume_ratio'], color='r', linewidth=1)
         ax22.legend(['거래량증가배율'])
 
         # deal 날짜를 선택하면 매수/매도 타점을 annotate함
-        if date == deal_time[:8]:
-            # print('시간비교', df_min.index.to_list(), pd.to_datetime(deal_time))
-            x_ = df_min.index.to_list().index(pd.to_datetime(deal_time))
-            # x_ = [i for i, idx in enumerate(df_min.index) if idx.strftime("%Y%m%d%H%M") == deal_time][0]
+        if (date == deal_time[:8]) and (pd.to_datetime(deal_time) in df_query.index.to_list()):
+            """
+            date는 분봉차트를 그리기 위해서 선택하는 날짜임. deal_time은 bollinger04.db에 저장된 거래시간임.
+            만약 같다면 분봉차트에서 줌하기 위하여 다시 클릭할때도 언제나 같다. 
+            """
+            # print('시간비교', df_query.index.to_list(), pd.to_datetime(deal_time))
+            # zoom할 경우 50봉 범위안에 없을 수도 있다.
+            x_ = df_query.index.to_list().index(pd.to_datetime(deal_time))
             y_ = buy_price
-            ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 50, y_),
+            xtext_ = x_ - 5 if redraw else x_ - 50
+            ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(xtext_, y_),
                          arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                          fontsize=12, bbox=dict(facecolor='r', alpha=0.2))
         else:
             ax1.text(0.5, 0.97, f'매수일시: {deal_time}', bbox=dict(facecolor='y', alpha=0.5),
                      horizontalalignment='center',
                      verticalalignment='center', fontsize=12, transform=ax1.transAxes)
-        fig.canvas.draw()
 
         def motion_notify_event(event):
             logging.info(f"592r, x좌표={event.xdata}, {event.inaxes == ax1}")
-            if len(ax1.texts) > 2:
+            if len(ax1.texts) > 1:
                 for txt in ax1.texts:
                     txt.set_visible(False)
-            ax1.texts[0].set_visible(True)
+                ax1.texts[0].set_visible(True)
 
             if event.inaxes == ax1:
                 logging.info(f"x좌표={event.xdata}")
                 xv = round(event.xdata)
-                if (xv < len(df_min)) and (event.ydata <= df_min['high'][xv]) and (event.ydata >= df_min['low'][xv]):
+                if (xv < len(df_query)) and (event.ydata <= df_query['high'][xv]) and (event.ydata >= df_query['low'][xv]):
                     # fig.canvas.flush_events()
-                    text = f"시간     :{df_min.index[xv].strftime('%H:%M')}\n" \
-                           f"시가     :{df_min['open'][xv]}\n" \
-                           f"고가     :{df_min['high'][xv]}\n" \
-                           f"저가     :{df_min['low'][xv]}\n" \
-                           f"종가     :{df_min['close'][xv]}\n" \
-                           f"거래량   :{df_min['volume'][xv]}\n" \
+                    text = f"시간     :{df_query.index[xv].strftime('%H:%M')}\n" \
+                           f"시가     :{df_query['open'][xv]}\n" \
+                           f"고가     :{df_query['high'][xv]}\n" \
+                           f"저가     :{df_query['low'][xv]}\n" \
+                           f"종가     :{df_query['close'][xv]}\n" \
+                           f"거래량   :{df_query['volume'][xv]}\n" \
                            f"\n" \
                            f"[볼린저 밴드]\n" \
-                           f"밴드상단   :{int(df_min['day_upperB'][xv])}\n" \
-                           f"돌파B배율  :{df_min['bWidth_ratio'][xv]}"
+                           f"밴드상단   :{int(df_query['day_upperB'][xv])}\n" \
+                           f"돌파B배율  :{df_query['bWidth_ratio'][xv]}"
 
-                    if event.y > 550:
-                        yv = df_min['low'][xv] * 1.00
+                    if event.y > 400:
+                        yv = df_query['low'][xv] * 1.00 - 100
                     else:
-                        yv = df_min['high'][xv] * 1.00
-
+                        yv = df_query['high'][xv] * 1.00
                 else:
                     text = ''
                     yv = event.ydata
-                ax1.text(xv+1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
+                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
                 fig.canvas.draw()
         fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
 
+        # candle을 50개씩 짤라서 그래프를 확대출력하는 함수
+        def mouse_click_event(event):
+            i = round(event.xdata)   # xdata는 x축의 데이터 순서를 의미한다. index의 순서가 아니다.
+            print('수정전 start,end', self.start, self.end)
+            self.start = self.start + i - 25
+            if self.start > len(df_min.index) - 50:
+                self.start = len(df_min.index) - 50
+            self.end = self.start + 50
+
+            # 50개분봉일 경우는 앞의 분봉차트를 지우고 새로 그린다
+            if redraw:
+                plt.close(fig)
+
+            self.redraw_minute_chart50(df_min, code, date, buy_price, deal_time, self.start, self.end, redraw=True)
+        fig.canvas.mpl_connect("button_press_event", mouse_click_event)
         fig.show()
+
+    def redraw_minute_chart50(self, df_min, code, date, buy_price, deal_time, start, end, redraw):
+        self.draw_minite_chart(df_min, code, date, buy_price, deal_time, start, end, redraw)
 
     def hogaUnit(self):
 
@@ -671,8 +770,48 @@ class PointWindow(QMainWindow):
 
 
 if __name__ == '__main__':
-    btest = BollingerTesting()
+    # btest = BollingerTesting()
     app = QApplication(sys.argv)
-    pwindow = PointWindow()
-    pwindow.show()
+    deal_profit = DealProfit()
+    deal_profit.show()
+    # pwindow = PointWindow()
+    # pwindow.show()
     app.exec_()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
