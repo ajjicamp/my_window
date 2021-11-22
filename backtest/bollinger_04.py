@@ -25,6 +25,7 @@ plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너
 
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
+PATH = "C:/Users/USER/PycharmProjects/my_window/backtest"
 
 volume_multiple = [1, 2, 3, 5, 10]
 avrg_volume_period = [20, 40, 60, 120]
@@ -55,7 +56,7 @@ class BollingerTesting:
         # self.get_market_jisu()
 
         # sqlite3에서 업종지수를 읽어와서  DATAFRAME에 저장; '익일시가' 컬럼을 추가 입력
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/market_jisu.db")
+        con = sqlite3.connect(f"{PATH}/market_jisu.db")
         self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
         self.df_kosdaq_jisu['익일시가'] = self.df_kosdaq_jisu['open'].shift(-1)
         # print('코스닥지수/n', self.df_kosdaq_jisu)
@@ -73,7 +74,7 @@ class BollingerTesting:
 
         # code_name 텍스트파일 읽어와서 list에 저장
         self.code_name = {}
-        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'r') as f:
+        with open(f"{PATH}/code_name.txt", 'r') as f:
 
             while True:
                 line = f.readline()
@@ -154,7 +155,7 @@ class BollingerTesting:
             code_name.append(f"{code} {name}")
 
         # print('code_name', code_name)
-        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'w') as f:
+        with open(f"{PATH}/code_name.txt", 'w') as f:
             for c_n in code_name:
                 f.write(c_n+'\n')
 
@@ -298,7 +299,7 @@ class BollingerTesting:
 class DealProfit(QMainWindow):
     def __init__(self):
         super(DealProfit, self).__init__()
-        db_name = "C:/Users/USER/PycharmProjects/my_window/backtest/deal_profit.db"
+        db_name = f"{PATH}/deal_profit.db"
         table_name = 'deal_summary'
         con = sqlite3.connect(db_name)
         # print('dbname', db_name)
@@ -308,9 +309,10 @@ class DealProfit(QMainWindow):
 
         column_count = len(df.columns)
         row_count = len(df)
-        self.setGeometry(100, 100, 1800, 900)
+        self.setGeometry(100, 100, 950, 550)
+        self.setWindowTitle('볼린저밴드 Width와 상단밴드 돌파를 이용한 Deal Profit 분석')
         self.table = QTableWidget(self)
-        self.table.setGeometry(0, 0, 1750, 900)
+        self.table.setGeometry(0, 0, 950, 550)
 
         self.table.setRowCount(row_count)
         self.table.setColumnCount(column_count)
@@ -344,7 +346,7 @@ class DealProfit(QMainWindow):
         self.table.cellClicked.connect(self.deal_profit_cell_clicked)
 
     def deal_profit_cell_clicked(self, row, col):
-        db_name = "C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db"
+        db_name = f"{PATH}/bollinger04.db"
         table_name = self.table.item(row, 0).text()
         # print('table_name', table_name)
 
@@ -362,7 +364,7 @@ class PointWindow(QWidget):
 
         # 종목이름을 code_name 텍스트파일에서 읽어와서 list에 저장  ==> 향후에는 utility.py에서 읽어옴.
         self.code_name = {}
-        with open('C:/Users/USER/PycharmProjects/my_window/backtest/code_name.txt', 'r') as f:
+        with open(f"{PATH}/code_name.txt", 'r') as f:
 
             while True:
                 line = f.readline()
@@ -372,11 +374,6 @@ class PointWindow(QWidget):
                 if not line:
                     break
             # print('code_name', self.code_name)
-        '''
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/bollinger04.db")
-        df = pd.read_sql("SELECT * FROM bollinger_deal", con)
-        con.close()
-        '''
         con = sqlite3.connect(db_name)
         # print('dbname', db_name)
         df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
@@ -419,21 +416,48 @@ class PointWindow(QWidget):
                     item.setTextAlignment(int(Qt.AlignRight) | int(Qt.AlignVCenter))
                 self.table.setItem(i, col, item)
 
-        self.table.cellClicked.connect(self.cell_clicked)
+        def cell_clicked(row):
+            code = self.table.item(row, 0).text()
+            # print('row', row)
+            deal_time = self.table.item(row, 1).text()  # 202109160909
+            buy_price = float(self.table.item(row, 2).text())
+            sell_price = float(self.table.item(row, 3).text())
+
+            df_2 = self.get_day_data(code, deal_time)
+            df_day = df_2[0]
+            df_jisu = df_2[1]
+            self.drawDayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
+
+        # self.table.cellClicked.connect(self.cell_clicked)
+        self.table.cellClicked.connect(cell_clicked)
         # print('self_table 객체', self.table)
         self.show()
+
     # 마우스이벤트 예시
     def mouseMoveEvent(self, event):
         it = self.item(self.rowCount(), 1)
         it.QToolTip.showText('Insert')
         self.onHovered()
 
+    '''
     def cell_clicked(self, row, col):
         code = self.table.item(row, 0).text()
         # print('row', row)
         deal_time = self.table.item(row, 1).text()  # 202109160909
         buy_price = float(self.table.item(row, 2).text())
         sell_price = float(self.table.item(row, 3).text())
+
+        # 지수차트 가져오기
+        con = sqlite3.connect(f"{PATH}/market_jisu.db")
+        df_jisu = pd.read_sql(f"SELECT * FROM kosdaq_jisu WHERE date > {start} and date <= {end} "
+                              f"ORDER BY date", con, index_col='date', parse_dates='date')
+        con.close()
+
+        df_day = self.get_day_data(deal_time)
+        self.drawDayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
+    '''
+
+    def get_day_data(self, code, deal_time):
 
         # 일봉차트 그리기
         tdate = pd.to_datetime(deal_time[:8])
@@ -443,7 +467,7 @@ class PointWindow(QWidget):
         end = str(end.strftime("%Y%m%d"))
 
         # print('start', start, type(start))
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db")
+        con = sqlite3.connect(DB_KOSDAQ_DAY)
         df_day = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 <= {end} "
                              f"ORDER BY 일자", con, index_col='일자', parse_dates='일자')
         con.close()
@@ -461,17 +485,18 @@ class PointWindow(QWidget):
         df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
 
         # 지수차트 가져오기
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/backtest/market_jisu.db")
+        con = sqlite3.connect(f"{PATH}/market_jisu.db")
         df_jisu = pd.read_sql(f"SELECT * FROM kosdaq_jisu WHERE date > {start} and date <= {end} "
                               f"ORDER BY date", con, index_col='date', parse_dates='date')
         con.close()
 
-        self.dayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
+        return df_day, df_jisu
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
-    def dayChart(self, code, df_day, deal_time, buy_price, sell_price, df_jisu):
+    def drawDayChart(self, code, df_day, deal_time, buy_price, sell_price, df_jisu):
         tdate = pd.to_datetime(deal_time[:8])
 
+        # fig = plt.figure(figsize=(15, 9))
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
@@ -542,20 +567,30 @@ class PointWindow(QWidget):
                 xv = round(event.xdata)
                 if (xv < len(df_day)) and (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
                     # fig.canvas.flush_events()
-                    text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
-                           f"시가     :{df_day['open'][xv]}\n" \
-                           f"고가     :{df_day['high'][xv]}\n" \
-                           f"저가     :{df_day['low'][xv]}\n" \
-                           f"종가     :{df_day['close'][xv]}\n" \
-                           f"거래량   :{df_day['volume'][xv]}\n" \
-                           f"\n" \
-                           f"[볼린저 밴드]\n" \
-                           f"밴드상단   :{int(df_day['밴드상단'][xv])}\n" \
-                           f"밴드기준선  :{int(df_day['밴드기준선'][xv])}\n" \
-                           f"밴드하단   :{int(df_day['밴드하단'][xv])}\n"
+                    print('xv', xv)
+                    if xv >= 19:
+                        text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
+                               f"시가     :{df_day['open'][xv]}\n" \
+                               f"고가     :{df_day['high'][xv]}\n" \
+                               f"저가     :{df_day['low'][xv]}\n" \
+                               f"종가     :{df_day['close'][xv]}\n" \
+                               f"거래량   :{df_day['volume'][xv]}\n" \
+                               f"\n" \
+                               f"[볼린저 밴드]\n" \
+                               f"밴드상단   :{int(df_day['밴드상단'][xv])}\n" \
+                               f"밴드기준선  :{int(df_day['밴드기준선'][xv])}\n" \
+                               f"밴드하단   :{int(df_day['밴드하단'][xv])}"
+                    else:
+                        text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
+                               f"시가     :{df_day['open'][xv]}\n" \
+                               f"고가     :{df_day['high'][xv]}\n" \
+                               f"저가     :{df_day['low'][xv]}\n" \
+                               f"종가     :{df_day['close'][xv]}\n" \
+                               f"거래량   :{df_day['volume'][xv]}"
 
-                    if event.y > 550:
-                        yv = df_day['low'][xv] * 0.85
+                    ylim = ax1.axis()
+                    if event.ydata > ((ylim[3] + ylim[2]) / 2):
+                        yv = df_day['low'][xv] - (ylim[3] - ylim[2]) * 3/10
                     else:
                         yv = df_day['high'][xv] * 1.00
 
@@ -564,6 +599,7 @@ class PointWindow(QWidget):
                     yv = event.ydata
                 ax1.text(xv+1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
                 fig.canvas.draw()
+
         fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
 
         def mouse_click_event(event):
@@ -575,13 +611,13 @@ class PointWindow(QWidget):
             end = len(df_min) - 1
             self.draw_minite_chart(df_min, code, date, buy_price, deal_time, start, end)
             # print('분봉날짜', date)
-
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
-
         fig.show()
+        # print('축정보', ax1.axis()[2])
+
 
     def get_minute_data(self, code, date, volume20, chl19, BWidth_1):
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db")
+        con = sqlite3.connect(DB_KOSDAQ_MIN)
         df_min = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
                              con, index_col='체결시간', parse_dates='체결시간')
         con.close()
@@ -748,6 +784,7 @@ class PointWindow(QWidget):
             i = round(event.xdata)   # xdata는 x축의 데이터 순서를 의미한다. index의 순서가 아니다.
             print('수정전 start,end', self.start, self.end)
             self.start = self.start + i - 25
+            if self.start < 0:  self.start = 0
             if self.start > len(df_min.index) - 50:
                 self.start = len(df_min.index) - 50
             self.end = self.start + 50
@@ -757,6 +794,7 @@ class PointWindow(QWidget):
                 plt.close(fig)
 
             self.redraw_minute_chart50(df_min, code, date, buy_price, deal_time, self.start, self.end, redraw=True)
+            print('s,e', len(df_min), start, end)
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
         fig.show()
 
