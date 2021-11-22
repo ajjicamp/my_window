@@ -18,7 +18,6 @@ import logging
 # logging.basicConfig(level=logging.INFO)
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
 # logging.basicConfig(filename="../log.txt", level=logging.INFO)
-
 # 한글폰트 깨짐방지
 plt.rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
@@ -26,6 +25,8 @@ plt.rcParams['axes.unicode_minus'] = False   # 한글 폰트 사용시 마이너
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
 PATH = "C:/Users/USER/PycharmProjects/my_window/backtest"
+DB_DEAL_DETAILS = f"{PATH}/bollinger04.db"
+DB_DEAL_PROFIT = f"{PATH}/deal_profit.db"
 
 volume_multiple = [1, 2, 3, 5, 10]
 avrg_volume_period = [20, 40, 60, 120]
@@ -86,8 +87,8 @@ class BollingerTesting:
             # print('code_name', self.code_name)
 
         # 종목별 시물레이션 시작
-        # for i in np.arange(1.1, 2.6, 0.1):
-        for i in np.arange(2.6, 4.1, 0.1):
+        # i = 1.7   # i를 1.7로 고정하고 다른 변수를 조정하며 백테스팅
+        for i in np.arange(1.1, 4.1, 0.1):  # i는 밴드와이드 확장배율
             self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
                                                  '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
                                                  '돌파V', '돌파V배율', '주가상승률', '지수상승률',
@@ -105,7 +106,7 @@ class BollingerTesting:
             # 시물레이션 결과를 건별로 sqlite3 db에 저장
             self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
             self.df_deal['체결시간'].head(5)
-            con = sqlite3.connect('bollinger04.db')
+            con = sqlite3.connect(DEAL_DETAILS)
             table_name = f"deal_{str(round(i,1))}"
             # self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
             self.df_deal.to_sql(table_name, con, if_exists='append', index=False)
@@ -126,7 +127,7 @@ class BollingerTesting:
                                                      ]
             print('deal결과\n', df_dealProfit)
 
-            con = sqlite3.connect("deal_profit.db")
+            con = sqlite3.connect(DB_DEAL_PROFIT)
             df_dealProfit.to_sql('deal_summary', con, if_exists='append', index=False)
             con.commit()
             con.close()
@@ -258,6 +259,7 @@ class BollingerTesting:
                 position, buy_price, sell_price = False, 0, 0
                 for mi, m_idx in enumerate(df_min.index):
                     # 매수는 하루에 한번뿐이다. 한번하면 stop
+
                     if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
                             and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.5)\
                             and (not position):
@@ -299,9 +301,9 @@ class BollingerTesting:
 class DealProfit(QMainWindow):
     def __init__(self):
         super(DealProfit, self).__init__()
-        db_name = f"{PATH}/deal_profit.db"
+        # db_name = DB_DEAL_PROFIT
         table_name = 'deal_summary'
-        con = sqlite3.connect(db_name)
+        con = sqlite3.connect(DB_DEAL_PROFIT)
         # print('dbname', db_name)
         df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
         con.close()
@@ -309,10 +311,10 @@ class DealProfit(QMainWindow):
 
         column_count = len(df.columns)
         row_count = len(df)
-        self.setGeometry(100, 100, 950, 550)
+        self.setGeometry(100, 100, 950, 1000)
         self.setWindowTitle('볼린저밴드 Width와 상단밴드 돌파를 이용한 Deal Profit 분석')
         self.table = QTableWidget(self)
-        self.table.setGeometry(0, 0, 950, 550)
+        self.table.setGeometry(0, 0, 950, 1000)
 
         self.table.setRowCount(row_count)
         self.table.setColumnCount(column_count)
@@ -346,12 +348,13 @@ class DealProfit(QMainWindow):
         self.table.cellClicked.connect(self.deal_profit_cell_clicked)
 
     def deal_profit_cell_clicked(self, row, col):
-        db_name = f"{PATH}/bollinger04.db"
+        # db_name = DB_DEAL_DETAILS
         table_name = self.table.item(row, 0).text()
         # print('table_name', table_name)
 
         # todo self변수로 넣어야 작동한다. 즉, 단순하게 pointwindow로 해서는 안된다.
-        self.pointwindow = PointWindow(db_name, table_name)
+        # self.pointwindow = PointWindow(db_name, table_name)
+        self.pointwindow = PointWindow(DB_DEAL_DETAILS, table_name)
         self.pointwindow.show()
 
 
@@ -615,7 +618,6 @@ class PointWindow(QWidget):
         fig.show()
         # print('축정보', ax1.axis()[2])
 
-
     def get_minute_data(self, code, date, volume20, chl19, BWidth_1):
         con = sqlite3.connect(DB_KOSDAQ_MIN)
         df_min = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
@@ -712,10 +714,13 @@ class PointWindow(QWidget):
         ax0.grid(True, which='major', color='gray', linewidth=0.2)
 
         ax2.bar(min_list, df_query['volume'])
-        ax2.set_xticks(range(0, len(df_query.index), 5))
-        ax2.set_xticks(min_list, minor=True)
         name_list = [v.strftime("%H:%M") for i, v in enumerate(df_query.index)]
-        name_list = [name_list[i] for i in range(0, len(df_query.index), 5)]
+        if not redraw:
+            ax2.set_xticks(range(0, len(df_query.index), 5))
+            ax2.set_xticks(min_list, minor=True)
+            name_list = [name_list[i] for i in range(0, len(df_query.index), 5)]
+        else:
+            ax2.set_xticks(min_list)
         ax2.set_xticklabels(name_list, rotation=90)
 
         ytick_ = [int(y / 1000) for y in df_query['volume']]
@@ -729,7 +734,7 @@ class PointWindow(QWidget):
         # deal 날짜를 선택하면 매수/매도 타점을 annotate함
         if (date == deal_time[:8]) and (pd.to_datetime(deal_time) in df_query.index.to_list()):
             """
-            date는 분봉차트를 그리기 위해서 선택하는 날짜임. deal_time은 bollinger04.db에 저장된 거래시간임.
+            date는 분봉차트를 그리기 위해서 선택하는 날짜임. deal_time은 bollinger05.db에 저장된 거래시간임.
             만약 같다면 분봉차트에서 줌하기 위하여 다시 클릭할때도 언제나 같다. 
             """
             # print('시간비교', df_query.index.to_list(), pd.to_datetime(deal_time))
