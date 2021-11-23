@@ -483,7 +483,7 @@ class PointWindow(QWidget):
         df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
-        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0)
+        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0).shift(1)   # todo
         df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
         df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
 
@@ -511,6 +511,9 @@ class PointWindow(QWidget):
 
         ax1 = fig.add_subplot(gs[0])
         ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
+                          df_day['close'], width=0.8,
+                          colorup='r', colordown='b')
 
         day_list = range(len(df_day.index))
         # print('day_list', day_list, day_list[0], day_list[-1])
@@ -612,13 +615,15 @@ class PointWindow(QWidget):
             df_min = self.get_minute_data(code, date, df_day['거래량20'][i], chl19, df_day['전일밴드폭'][i])
             start = 0
             end = len(df_min) - 1
+            # print('start, end', start, end)
             self.draw_minite_chart(df_min, code, date, buy_price, deal_time, start, end)
             # print('분봉날짜', date)
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
         fig.show()
         # print('축정보', ax1.axis()[2])
 
-    def get_minute_data(self, code, date, volume20, chl19, BWidth_1):
+    def get_minute_data(self, code, date, volume20, chl19, BWidth_1):   # BWidth_1 ; 전일밴드폭
+        print("전일밴드폭, volume20:", BWidth_1, volume20)
         con = sqlite3.connect(DB_KOSDAQ_MIN)
         df_min = pd.read_sql(f"SELECT * FROM '{code}' WHERE 체결시간 LIKE '{date}%' ORDER BY 체결시간",
                              con, index_col='체결시간', parse_dates='체결시간')
@@ -629,8 +634,12 @@ class PointWindow(QWidget):
         df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
         # -----------------------------------------------
         df_min['cum_volume'] = df_min['volume'].cumsum()
-        df_min['volume_ratio'] = \
-            df_min['cum_volume'].apply(lambda x: round(x / volume20, 1))   # todo 여기수정필요
+        if volume20 != 0:
+            df_min['volume_ratio'] = \
+                df_min['cum_volume'].apply(lambda x: round(x / volume20, 1))   # todo 여기수정필요
+        else:
+            df_min['volume_ratio'] = 0
+
         df_min['highest'] = df_min['high'].cummax()
         df_min['lowest'] = df_min['low'].cummin()
         df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
@@ -653,8 +662,12 @@ class PointWindow(QWidget):
         df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl19)[1])
         df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl19)[2])
         df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
-        df_min['bWidth_ratio'] = round(df_min['day_bandWidth'] / BWidth_1, 2)
-        df_min['next_open'] = df_min['open'].shift(-1)
+        # 전날부터 소급하여 19일간의 데이터가 없으면 BWidth_1이 0가 된다.
+        if BWidth_1 != 0:
+            df_min['bWidth_ratio'] = round(df_min['day_bandWidth'] / BWidth_1, 2)
+        else:
+            df_min['bWidth_ratio'] = 0
+        # df_min['next_open'] = df_min['open'].shift(-1)
         # print('df_min', df_min)
 
         return df_min
@@ -684,42 +697,45 @@ class PointWindow(QWidget):
                                width_ratios=[20]
                                )
         # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
-        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.00)
+        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.05)
 
         ax1 = fig.add_subplot(gs[1])
         ax2 = fig.add_subplot(gs[2], sharex=ax1)
         ax0 = fig.add_subplot(gs[0], sharex=ax1)
 
         min_list = range(len(df_query.index))
-        # print('min_list', min_list, min_list[0], min_list[-1])
+        print('min_list', min_list, min_list[0], min_list[-1], df_query['volume_ratio'])
 
-        ax1.plot(min_list, df_query['day_upperB'], color='r', linewidth=1)
+        ax1.plot(min_list, df_query['day_upperB'], color='black', linewidth=1)
 
         candlestick2_ohlc(ax1, df_query['open'], df_query['high'], df_query['low'],
                           df_query['close'], width=0.8,
                           colorup='r', colordown='b')
 
-        ax0.set_title(f"{self.code_name[code]} 분봉차트 ({date})", fontsize=20)
         ax1.legend(['일봉B밴드상단'])
         ax1.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
-        # ax1.xaxis.set_visible(False)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
 
+        ax0.set_title(f"{self.code_name[code]} 분봉차트 ({date})", fontsize=20)
+        print('bWidth', df_query['bWidth_ratio'])
+        # if df_query['bWidth_ratio'] == None:
         ax0.plot(min_list, df_query['bWidth_ratio'], color='c', linewidth=1)
-        ax0.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
-        # ax0.xaxis.set_visible(False)
-        # ax0.axhline(y=1.5, color='r', linewidth=0.5)
         ax0.axhline(y=self.bWidthMultiple, color='r', linewidth=0.5, label='bWidthMultipl')
         ax0.legend(['밴드상단확장률'])
+        ax0.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
+
         ax0.grid(True, which='major', color='gray', linewidth=0.2)
 
         ax2.bar(min_list, df_query['volume'])
         name_list = [v.strftime("%H:%M") for i, v in enumerate(df_query.index)]
+
         if not redraw:
+            print('redraw=False')
             ax2.set_xticks(range(0, len(df_query.index), 5))
             ax2.set_xticks(min_list, minor=True)
             name_list = [name_list[i] for i in range(0, len(df_query.index), 5)]
         else:
+            print("redraw=True")
             ax2.set_xticks(min_list)
         ax2.set_xticklabels(name_list, rotation=90)
 
@@ -727,9 +743,11 @@ class PointWindow(QWidget):
         ax2.set_yticklabels(ytick_)
         ax2.set_ylabel("거래량(단위:천)", color='green', fontdict={'size': 11})
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
-        ax22 = ax2.twinx()
-        ax22.plot(min_list, df_query['volume_ratio'], color='r', linewidth=1)
-        ax22.legend(['거래량증가배율'])
+
+        if not df_query['volume_ratio'].any() == 0:
+            ax22 = ax2.twinx()
+            ax22.plot(min_list, df_query['volume_ratio'], color='r', linewidth=1)
+            ax22.legend(['거래량증가배율'])
 
         # deal 날짜를 선택하면 매수/매도 타점을 annotate함
         if (date == deal_time[:8]) and (pd.to_datetime(deal_time) in df_query.index.to_list()):
