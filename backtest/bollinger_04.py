@@ -14,6 +14,7 @@ from matplotlib import gridspec
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import logging
+from multiprocessing import Process, Lock
 
 # logging.basicConfig(level=logging.INFO)
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
@@ -48,14 +49,6 @@ class BollingerTesting:
         self.sell_price = 0
         self.count = 0
 
-        # self.df_trading = pd.DataFrame(columns=['매수가', '매도가', '순수익', '밴드상단'])
-        # self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-        #                                      '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
-        #                                      '돌파V', '돌파V배율', '주가상승률', '지수상승률',
-        #                                      ])
-        # 키움에서 업종지수 가져옴
-        # self.get_market_jisu()
-
         # sqlite3에서 업종지수를 읽어와서  DATAFRAME에 저장; '익일시가' 컬럼을 추가 입력
         con = sqlite3.connect(f"{PATH}/market_jisu.db")
         self.df_kosdaq_jisu = pd.read_sql("SELECT * FROM kosdaq_jisu", con, index_col='date', parse_dates='date')
@@ -69,9 +62,6 @@ class BollingerTesting:
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         table_list = [v[0] for v in cur.fetchall()]
         con.close()
-
-        # table_list에 대한 종목명 가져오기
-        # self.get_code_name(table_list)
 
         # code_name 텍스트파일 읽어와서 list에 저장
         self.code_name = {}
@@ -99,14 +89,10 @@ class BollingerTesting:
 
             self.startTrader(table_list, i)
 
-            # 시물레이션 결과 요약 출력
-            # print(f"순이익 {self.df_deal['순이익'].sum()} 순이익률 "
-            #       f"{round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)}")
-
             # 시물레이션 결과를 건별로 sqlite3 db에 저장
             self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
             self.df_deal['체결시간'].head(5)
-            con = sqlite3.connect(DEAL_DETAILS)
+            con = sqlite3.connect(DB_DEAL_DETAILS)
             table_name = f"deal_{str(round(i,1))}"
             # self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
             self.df_deal.to_sql(table_name, con, if_exists='append', index=False)
@@ -261,7 +247,7 @@ class BollingerTesting:
                     # 매수는 하루에 한번뿐이다. 한번하면 stop
 
                     if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
-                            and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.5)\
+                            and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * multiple)\
                             and (not position):
 
                         buy_price = df_min.at[m_idx, 'close']
@@ -381,6 +367,9 @@ class PointWindow(QWidget):
         # print('dbname', db_name)
         df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
         con.close()
+        df['0900'] = df['체결시간'].apply(lambda x: x[8:] == '0900')
+        df = df[df['0900']]
+        # print('dfs', df)
         # print('df_b4', df)
 
         column_count = len(df.columns)
@@ -483,7 +472,7 @@ class PointWindow(QWidget):
         df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
-        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0).shift(1)   # todo
+        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0).shift(1)   # todo 하루전 기준이라야 함.
         df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
         df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
 
@@ -697,7 +686,7 @@ class PointWindow(QWidget):
                                width_ratios=[20]
                                )
         # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
-        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.05)
+        fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.00)
 
         ax1 = fig.add_subplot(gs[1])
         ax2 = fig.add_subplot(gs[2], sharex=ax1)
@@ -831,6 +820,10 @@ class PointWindow(QWidget):
 
 
 if __name__ == '__main__':
+    # lock = Lock()
+    # core_count = 8
+    # for i in range(core_count):
+
     # btest = BollingerTesting()
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
@@ -838,41 +831,4 @@ if __name__ == '__main__':
     # pwindow = PointWindow()
     # pwindow.show()
     app.exec_()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
