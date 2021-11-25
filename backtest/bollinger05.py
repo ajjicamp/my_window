@@ -1,3 +1,4 @@
+import os
 import sys
 import datetime
 import sqlite3
@@ -14,7 +15,7 @@ from matplotlib import gridspec
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import logging
-from multiprocessing import Process, Lock
+from multiprocessing import Pool, Process, Lock
 
 # logging.basicConfig(level=logging.INFO)
 # logging.basicConfig(filename="../log.txt", level=logging.ERROR)
@@ -26,8 +27,8 @@ plt.rcParams['axes.unicode_minus'] = False  # 한글 폰트 사용시 마이너�
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
 PATH = "C:/Users/USER/PycharmProjects/my_window/backtest"
-DB_DEAL_DETAILS = f"{PATH}/bollinger04.db"
-DB_DEAL_PROFIT = f"{PATH}/deal_profit.db"
+DB_DEAL_DETAILS = f"{PATH}/bollinger05.db"
+DB_DEAL_PROFIT = f"{PATH}/deal_profit05.db"
 
 volume_multiple = [1, 2, 3, 5, 10]
 avrg_volume_period = [20, 40, 60, 120]
@@ -76,48 +77,13 @@ class BollingerTesting:
                     break
             # print('code_name', self.code_name)
 
-    def start_simulation(self):
+        # self.set_bBand_multiple()
+
+    def set_bBand_multiple(self):
         # 종목별 시물레이션 시작
         # i = 1.7   # i를 1.7로 고정하고 다른 변수를 조정하며 백테스팅
-        for i in np.arange(1.1, 4.1, 0.1):  # i는 밴드와이드 확장배율
-            self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                                 '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
-                                                 '돌파V', '돌파V배율', '주가상승률', '지수상승률',
-                                                 ])
-
-            df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '총건수', '매수가합계', '순이익합계', '순이익률', 'V증가율',
-                                                  '돌파V배율', '주가상승률', '지수상승률'])
-
-            self.startCodeTrader(self.table_list, i)
-
-            # 시물레이션 결과를 건별로 sqlite3 db에 저장
-            self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
-            self.df_deal['체결시간'].head(5)
-            con = sqlite3.connect(DB_DEAL_DETAILS)
-            table_name = f"deal_{str(round(i, 1))}"
-            # self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
-            self.df_deal.to_sql(table_name, con, if_exists='append', index=False)
-            con.commit()
-            con.close()
-
-            # deal 결과 요약저장
-            profit_ratio = round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)
-            df_dealProfit.loc[len(df_dealProfit)] = [f"deal_{str(round(i, 1))}",
-                                                     self.df_deal['매수가'].count(),
-                                                     self.df_deal['매수가'].sum(),
-                                                     self.df_deal['순이익'].sum(),
-                                                     profit_ratio,
-                                                     round(self.df_deal['V증가율'].mean(), 1),
-                                                     round(self.df_deal['돌파V배율'].mean(), 1),
-                                                     round(self.df_deal['주가상승률'].mean(), 2),
-                                                     round(self.df_deal['지수상승률'].mean(), 2)
-                                                     ]
-            print('deal결과\n', df_dealProfit)
-
-            con = sqlite3.connect(DB_DEAL_PROFIT)
-            df_dealProfit.to_sql('deal_summary', con, if_exists='append', index=False)
-            con.commit()
-            con.close()
+        for multiple in np.arange(1.1, 4.1, 0.1):  # i는 밴드와이드 확장배율
+            self.startTrader(self.table_list, multiple)
 
     def get_market_jisu(self):
         # 키움에서 코스피/코스닥업종지수 일봉데이터 가져오기
@@ -148,15 +114,24 @@ class BollingerTesting:
                 f.write(c_n + '\n')
 
     # 종목별로 시물레이션하기 위하여 sqlite3 db에서 일봉데이터를 가져와서 dataframe에 저장하고 시물레이션 실시
-    def startCodeTrader(self, table_list, multiple):
-        starttime = time.time()
-        for i, table in enumerate(table_list):
+    def startTrader(self, multiple):
+        self.lock = Lock()
+        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
+                                             '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
+                                             '돌파V', '돌파V배율', '주가상승률', '지수상승률',
+                                             ])
+
+        df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '총건수', '매수가합계', '순이익합계', '순이익률', 'V증가율',
+                                              '돌파V배율', '주가상승률', '지수상승률'])
+        for i, table in enumerate(self.table_list):
             # sqlite3 db에서 종목별 일봉데이터를 가져와서 인덱스, 컬럼조정 및 볼린저밴드 컬럼 추가
+            self.lock.acquire()
             con = sqlite3.connect(DB_KOSDAQ_DAY)
             # cur = con.cursor()
             df_day = pd.read_sql(f"SELECT * FROM '{table}' WHERE 일자 > 20210101 ORDER BY 일자", con,
                                  index_col='일자', parse_dates='일자')
             con.close()
+            self.lock.release()
             df_day.index.name = 'date'
             df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
             df_day = df_day[['open', 'high', 'low', 'close', 'volume']]
@@ -172,12 +147,46 @@ class BollingerTesting:
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
-            # 대상기간을 압축하여하여 시물레이션 시작
+            # 대상기간을 압축하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
-            print(f"시물레이션 중 {table}... {i + 1} / {len(table_list)}")
+            print(f"시물레이션 중 {table}... {i + 1} / {len(self.table_list)}")
 
             self.code_trading(table, df_day.loc[period], multiple)  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
-        # print("소요시간", time.time() - starttime)
+
+        print('self.df_deal', self.df_deal)
+
+        if len(self.df_deal) == 0:
+            print(f"{multiple}deal결과 없음")
+            return
+
+        # 시물레이션 결과를 건별로 sqlite3 db에 저장
+        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: datetime.datetime.strftime(_, "%Y%m%d%H%M"))
+        # self.df_deal['체결시간'].head(5)
+        con = sqlite3.connect(DB_DEAL_DETAILS)
+        table_name = f"deal_{str(round(multiple, 1))}"
+        self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
+        # self.df_deal.to_sql(table_name, con, if_exists='append', index=False)
+        con.commit()
+        con.close()
+
+        # deal 결과 요약저장
+        profit_ratio = round(self.df_deal['순이익'].sum() / self.df_deal['매수가'].sum() * 100, 2)
+        df_dealProfit.loc[len(df_dealProfit)] = [f"deal_{str(round(multiple, 1))}",
+                                                 self.df_deal['매수가'].count(),
+                                                 self.df_deal['매수가'].sum(),
+                                                 self.df_deal['순이익'].sum(),
+                                                 profit_ratio,
+                                                 round(self.df_deal['V증가율'].mean(), 1),
+                                                 round(self.df_deal['돌파V배율'].mean(), 1),
+                                                 round(self.df_deal['주가상승률'].mean(), 2),
+                                                 round(self.df_deal['지수상승률'].mean(), 2)
+                                                 ]
+        print('deal결과\n', df_dealProfit)
+
+        con = sqlite3.connect(DB_DEAL_PROFIT)
+        df_dealProfit.to_sql('deal_summary', con, if_exists='append', index=False)
+        con.commit()
+        con.close()
 
     def code_trading(self, table, df_day, multiple):  # '돌파한 날만' filtering하면 안된다. ---> 돌파이전 상황도 중요.
         chl_avrg_list, chl_list = None, None
@@ -205,7 +214,7 @@ class BollingerTesting:
 
             # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
             if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단'] \
-                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * multiple:  # multiple = 1.5
+                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * multiple:  # multiple = 1.1 ~ 4.0
 
                 # -----------------------------
                 start = time.time()
@@ -292,7 +301,7 @@ class DealProfit(QMainWindow):
         table_name = 'deal_summary'
         con = sqlite3.connect(DB_DEAL_PROFIT)
         # print('dbname', db_name)
-        df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
+        df = pd.read_sql(f"SELECT * FROM {table_name}", con)
         con.close()
         # print('df', df)
 
@@ -827,10 +836,11 @@ class PointWindow(QWidget):
 if __name__ == '__main__':
     btest = BollingerTesting()
     lock = Lock()
-    core_count = 8
-
-    for i in np.arange(1.1, 4.1, 0.1):  # i는 밴드와이드 확장배율
-        Process(target=btest.start_simulation, args=(i, lock)).start()
+    start_time = time.time()
+    core = os.cpu_count()
+    with Pool(core) as p:
+        p.map(btest.startTrader, np.arange(1.1, 4.1, 0.1))
+    print('총소요시간', time.time() - start_time)
 
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
