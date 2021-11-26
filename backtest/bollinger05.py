@@ -117,7 +117,7 @@ class BollingerTesting:
     def startTrader(self, multiple):
         self.lock = Lock()
         self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률',
-                                             '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '시가', '고가', '종가',
+                                             '직전V평균', 'V증가율', '밴드상단', '돌파밴드상단', '밴드폭*M', '시가', '고가', '종가',
                                              '돌파V', '돌파V배율', '주가상승률', '지수상승률',
                                              ])
 
@@ -144,6 +144,7 @@ class BollingerTesting:
             df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std(ddof=0) * 2)
             df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
             df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
+            df_day['전일밴드상단'] = df_day['밴드상단'].shift(1)
             df_day['밴드돌파'] = df_day['high'] > df_day['밴드상단']
             df_day['익일시가'] = df_day['open'].shift(-1)
 
@@ -213,8 +214,10 @@ class BollingerTesting:
                 continue
 
             # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
+            # 전일밴드폭이 0인 경우는 제외한다.
             if df_day.at[idx, 'high'] > df_day.at[idx, '밴드상단'] \
-                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * multiple:  # multiple = 1.1 ~ 4.0
+                    and df_day.at[idx, '밴드폭'] > df_day.at[idx, '전일밴드폭'] * multiple\
+                    and df_day.at[idx, '전일밴드폭'] != 0:   # multiple = 1.1 ~ 4.0
 
                 # -----------------------------
                 start = time.time()
@@ -253,13 +256,19 @@ class BollingerTesting:
                 # input()
 
                 position, buy_price, sell_price = False, 0, 0
-                for mi, m_idx in enumerate(df_min.index):
-                    # 매수는 하루에 한번뿐이다. 한번하면 stop
+                for mi, m_idx in enumerate(df_min.index):      # 매수는 하루에 한번뿐이다. 한번하면 stop
 
-                    if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
+                    #  1분봉 밴드폭이 과도하게 상승한 경우는 진입하지 않음. 특히, 시초가
+                    if (df_min.at[m_idx, 'high'] > df_min.at[m_idx, 'day_upperB']) \
                             and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * multiple) \
+                            and (df_min.at[m_idx, 'day_bandWidth'] < df_day.at[idx, '전일밴드폭'] * (multiple + 0.1))\
                             and (not position):
-                        buy_price = df_min.at[m_idx, 'close']
+                        # 매수가는 전일밴드폭을 돌파하는 순간가격을 기준으로 함.
+                        if mi != 0:
+                            buy_price = df_day.at[idx, '전일밴드상단'] * multiple
+                        else:
+                            buy_price = df_min.at[m_idx, 'open']
+
                         position = True
                         sell_price = df_day.at[idx, '익일시가']
 
@@ -279,6 +288,7 @@ class BollingerTesting:
                                                                df_day.at[idx, 'volume_ratio'],
                                                                df_day.at[idx, '밴드상단'],
                                                                df_min.at[m_idx, 'day_upperB'],
+                                                               df_day.at[idx, '전일밴드폭'] * multiple,
                                                                df_day.at[idx, 'open'],
                                                                df_day.at[idx, 'high'],
                                                                df_day.at[idx, 'close'],
@@ -302,6 +312,7 @@ class DealProfit(QMainWindow):
         con = sqlite3.connect(DB_DEAL_PROFIT)
         # print('dbname', db_name)
         df = pd.read_sql(f"SELECT * FROM {table_name}", con)
+        df = df.astype({'순이익합계': 'int'})
         con.close()
         # print('df', df)
 
@@ -326,6 +337,7 @@ class DealProfit(QMainWindow):
         for i in range(0, 15):
             self.table.setColumnWidth(i, 95)
         self.table.setColumnWidth(0, 130)
+        self.table.setColumnWidth(2, 130)
 
         for i, val in enumerate(df.values):
             for col in range(len(df.columns)):
@@ -378,7 +390,7 @@ class PointWindow(QWidget):
         df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
         con.close()
         df['0900'] = df['체결시간'].apply(lambda x: x[8:] == '0900')
-        df = df[df['0900']]
+        # df = df[df['0900']]
         # print('dfs', df)
         # print('df_b4', df)
 
@@ -441,24 +453,6 @@ class PointWindow(QWidget):
         it.QToolTip.showText('Insert')
         self.onHovered()
 
-    '''
-    def cell_clicked(self, row, col):
-        code = self.table.item(row, 0).text()
-        # print('row', row)
-        deal_time = self.table.item(row, 1).text()  # 202109160909
-        buy_price = float(self.table.item(row, 2).text())
-        sell_price = float(self.table.item(row, 3).text())
-
-        # 지수차트 가져오기
-        con = sqlite3.connect(f"{PATH}/market_jisu.db")
-        df_jisu = pd.read_sql(f"SELECT * FROM kosdaq_jisu WHERE date > {start} and date <= {end} "
-                              f"ORDER BY date", con, index_col='date', parse_dates='date')
-        con.close()
-
-        df_day = self.get_day_data(deal_time)
-        self.drawDayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
-    '''
-
     def get_day_data(self, code, deal_time):
 
         # 일봉차트 그리기
@@ -477,12 +471,14 @@ class PointWindow(QWidget):
         df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
         df_day = df_day[['open', 'high', 'low', 'close', 'volume', 'amount']]
 
+        df_day['전일종가'] = df_day['close'].shift(1)
+        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0).shift(1)  # todo 하루전 기준이라야 함.
+
         # bollinger band 추가
         df_day['종고저평균'] = round((df_day['close'] + df_day['high'] + df_day['low']) / 3, 0)
         df_day['밴드기준선'] = round(df_day['종고저평균'].rolling(window=20).mean(), 0)  # 밴드기준선
         df_day['밴드상단'] = round(df_day['밴드기준선'] + df_day['종고저평균'].rolling(window=20).std() * 2, 0)
         df_day['밴드하단'] = round(df_day['밴드기준선'] - df_day['종고저평균'].rolling(window=20).std() * 2, 0)
-        df_day['거래량20'] = round(df_day['volume'].rolling(window=20).mean(), 0).shift(1)  # todo 하루전 기준이라야 함.
         df_day['밴드폭'] = round((df_day['밴드상단'] - df_day['밴드하단']) / df_day['밴드기준선'], 3)
         df_day['전일밴드폭'] = df_day['밴드폭'].shift(1)
 
@@ -573,12 +569,18 @@ class PointWindow(QWidget):
                 if (xv < len(df_day)) and (event.ydata <= df_day['high'][xv]) and (event.ydata >= df_day['low'][xv]):
                     # fig.canvas.flush_events()
                     print('xv', xv)
+                    close_1 = df_day['전일종가'][xv]
+                    open_ = df_day['open'][xv]
+                    high_ = df_day['high'][xv]
+                    low_ = df_day['low'][xv]
+                    close_ = df_day['close'][xv]
+
                     if xv >= 19:
                         text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
-                               f"시가     :{df_day['open'][xv]}\n" \
-                               f"고가     :{df_day['high'][xv]}\n" \
-                               f"저가     :{df_day['low'][xv]}\n" \
-                               f"종가     :{df_day['close'][xv]}\n" \
+                               f"시가     :{open_} ({round((open_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"고가     :{high_} ({round((high_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"저가     :{low_} ({round((low_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"종가     :{close_} ({round((close_ / close_1 - 1) * 100, 2)}%)\n" \
                                f"거래량   :{df_day['volume'][xv]}\n" \
                                f"\n" \
                                f"[볼린저 밴드]\n" \
@@ -587,10 +589,10 @@ class PointWindow(QWidget):
                                f"밴드하단   :{int(df_day['밴드하단'][xv])}"
                     else:
                         text = f"일자     :{df_day.index[xv].strftime('%Y-%m-%d')}\n" \
-                               f"시가     :{df_day['open'][xv]}\n" \
-                               f"고가     :{df_day['high'][xv]}\n" \
-                               f"저가     :{df_day['low'][xv]}\n" \
-                               f"종가     :{df_day['close'][xv]}\n" \
+                               f"시가     :{open_} ({round((open_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"고가     :{high_} ({round((high_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"저가     :{low_} ({round((low_ / close_1 - 1) * 100, 2)}%)\n" \
+                               f"종가     :{close_} ({round((close_ / close_1 - 1) * 100, 2)}%)\n" \
                                f"거래량   :{df_day['volume'][xv]}"
 
                     ylim = ax1.axis()
@@ -602,7 +604,7 @@ class PointWindow(QWidget):
                 else:
                     text = ''
                     yv = event.ydata
-                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
+                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='white', alpha=1.0))
                 fig.canvas.draw()
 
         fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
@@ -633,6 +635,7 @@ class PointWindow(QWidget):
         df_min.columns = ['close', 'open', 'high', 'low', 'volume']
         df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
         # -----------------------------------------------
+        df_min['전봉종가'] = df_min['close'].shift(1)
         df_min['cum_volume'] = df_min['volume'].cumsum()
         if volume20 != 0:
             df_min['volume_ratio'] = \
@@ -781,11 +784,17 @@ class PointWindow(QWidget):
                 if (xv < len(df_query)) and (event.ydata <= df_query['high'][xv]) and (
                         event.ydata >= df_query['low'][xv]):
                     # fig.canvas.flush_events()
+                    close_1 = df_query['전봉종가'][xv]
+                    open_ = df_query['open'][xv]
+                    high_ = df_query['high'][xv]
+                    low_ = df_query['low'][xv]
+                    close_ = df_query['close'][xv]
+
                     text = f"시간     :{df_query.index[xv].strftime('%H:%M')}\n" \
-                           f"시가     :{df_query['open'][xv]}\n" \
-                           f"고가     :{df_query['high'][xv]}\n" \
-                           f"저가     :{df_query['low'][xv]}\n" \
-                           f"종가     :{df_query['close'][xv]}\n" \
+                           f"시가     :{open_} ({round((open_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"고가     :{high_} ({round((high_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"저가     :{low_} ({round((low_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"종가     :{close_} ({round((close_ / close_1 - 1) * 100, 2)}%)\n" \
                            f"거래량   :{df_query['volume'][xv]}\n" \
                            f"\n" \
                            f"[볼린저 밴드]\n" \
@@ -799,7 +808,7 @@ class PointWindow(QWidget):
                 else:
                     text = ''
                     yv = event.ydata
-                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='c', alpha=1.0))
+                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='white', alpha=1.0))
                 fig.canvas.draw()
 
         fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
@@ -834,6 +843,7 @@ class PointWindow(QWidget):
 
 
 if __name__ == '__main__':
+    '''
     btest = BollingerTesting()
     lock = Lock()
     start_time = time.time()
@@ -841,7 +851,7 @@ if __name__ == '__main__':
     with Pool(core) as p:
         p.map(btest.startTrader, np.arange(1.1, 4.1, 0.1))
     print('총소요시간', time.time() - start_time)
-
+    '''
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
     deal_profit.show()
