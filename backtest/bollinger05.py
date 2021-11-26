@@ -123,6 +123,7 @@ class BollingerTesting:
 
         df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '총건수', '매수가합계', '순이익합계', '순이익률', 'V증가율',
                                               '돌파V배율', '주가상승률', '지수상승률'])
+
         for i, table in enumerate(self.table_list):
             # sqlite3 db에서 종목별 일봉데이터를 가져와서 인덱스, 컬럼조정 및 볼린저밴드 컬럼 추가
             self.lock.acquire()
@@ -151,9 +152,7 @@ class BollingerTesting:
             # 대상기간을 압축하여 시물레이션 시작
             period = (df_day.index >= "2021-02-01") & (df_day.index <= "2021-09-30")
             print(f"시물레이션 중 {table}... {i + 1} / {len(self.table_list)}")
-
             self.code_trading(table, df_day.loc[period], multiple)  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
-
         print('self.df_deal', self.df_deal)
 
         if len(self.df_deal) == 0:
@@ -259,13 +258,13 @@ class BollingerTesting:
                 for mi, m_idx in enumerate(df_min.index):      # 매수는 하루에 한번뿐이다. 한번하면 stop
 
                     #  1분봉 밴드폭이 과도하게 상승한 경우는 진입하지 않음. 특히, 시초가
-                    if (df_min.at[m_idx, 'high'] > df_min.at[m_idx, 'day_upperB']) \
+                    if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
                             and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * multiple) \
                             and (df_min.at[m_idx, 'day_bandWidth'] < df_day.at[idx, '전일밴드폭'] * (multiple + 0.1))\
                             and (not position):
                         # 매수가는 전일밴드폭을 돌파하는 순간가격을 기준으로 함.
                         if mi != 0:
-                            buy_price = df_day.at[idx, '전일밴드상단'] * multiple
+                            buy_price = df_min.at[m_idx, 'close']
                         else:
                             buy_price = df_min.at[m_idx, 'open']
 
@@ -391,8 +390,6 @@ class PointWindow(QWidget):
         con.close()
         df['0900'] = df['체결시간'].apply(lambda x: x[8:] == '0900')
         # df = df[df['0900']]
-        # print('dfs', df)
-        # print('df_b4', df)
 
         column_count = len(df.columns)
         row_count = len(df)
@@ -440,6 +437,7 @@ class PointWindow(QWidget):
             df_2 = self.get_day_data(code, deal_time)
             df_day = df_2[0]
             df_jisu = df_2[1]
+            self.fig = None
             self.drawDayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
 
         # self.table.cellClicked.connect(self.cell_clicked)
@@ -492,9 +490,12 @@ class PointWindow(QWidget):
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
     def drawDayChart(self, code, df_day, deal_time, buy_price, sell_price, df_jisu):
+        # if not self.fig == None:
+        plt.close()
+
+        # 차트가 있으면 지우고 새로 그린다.
         tdate = pd.to_datetime(deal_time[:8])
 
-        # fig = plt.figure(figsize=(15, 9))
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
@@ -843,7 +844,6 @@ class PointWindow(QWidget):
 
 
 if __name__ == '__main__':
-    '''
     btest = BollingerTesting()
     lock = Lock()
     start_time = time.time()
@@ -851,7 +851,6 @@ if __name__ == '__main__':
     with Pool(core) as p:
         p.map(btest.startTrader, np.arange(1.1, 4.1, 0.1))
     print('총소요시간', time.time() - start_time)
-    '''
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
     deal_profit.show()
