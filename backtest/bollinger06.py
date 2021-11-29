@@ -33,6 +33,13 @@ DB_DEAL_PROFIT = f"{PATH}/deal_profit06.db"
 
 class BollingerTesting:
     def __init__(self):
+        # 기존파일 삭제하고 새로 시작
+        if os.path.exists(DB_DEAL_DETAILS):
+            os.remove(DB_DEAL_DETAILS)
+
+        if os.path.exists(DB_DEAL_PROFIT):
+            os.remove(DB_DEAL_PROFIT)
+
         # self.df_day = pd.DataFrame()
         # self.df_min = pd.DataFrame()
         self.df_kosdaq_jisu = pd.DataFrame()
@@ -231,6 +238,7 @@ class BollingerTesting:
             df_min.columns = ['close', 'open', 'high', 'low', 'volume']
             df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
             # -----------------------------------------------
+            df_min['next_open'] = df_min['open'].shift(-1)
             df_min['cum_volume'] = df_min['volume'].cumsum()
             df_min['volume_ratio'] = \
                 df_min['cum_volume'].apply(lambda x: round(x / df_day.at[idx, 'volume_mean20'], 1))
@@ -243,73 +251,82 @@ class BollingerTesting:
             df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
             df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
             df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
-            df_min['next_open'] = df_min['open'].shift(-1)
+
+            # 시초가 기준 볼린저밴드를 계산(시초가는 이기준으로 접근)
+            df_min['day_mean20_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
+            df_min['day_upperB_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
+            df_min['day_lowerB_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
+            df_min['day_bandWidth_open'] = (df_min['day_upperB_open'] - df_min['day_lowerB_open']) / \
+                                           df_min['day_mean20_open']
 
             for mi, m_idx in enumerate(df_min.index):      # 매수는 하루에 한번뿐이다. 한번하면 stop
                 #  1분봉 밴드폭이 과도하게 상승한 경우는 진입하지 않음. 특히, 시초가
-                if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
-                        and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * multiple):
-                    # 매수가는 전일밴드폭을 돌파하는 순간가격을 기준으로 함.
-                    # start = time.time()
-                    if mi == 0:
-                        if df_min.at[m_idx, 'open'] > df_min.at[m_idx, 'day_upperB'] * 1.03:
-                            print('과다상승으로 제외', table, m_idx)
+                # 시초가는 시가기준 볼린저밴드로 접근함
+                position = False
+                if mi == 0:
+                    if df_min.at[m_idx, 'open'] > df_min.at[m_idx, 'day_upperB_open'] \
+                          and (df_min.at[m_idx, 'day_bandWidth_open'] > df_day.at[idx, '전일밴드폭'] * multiple):
+                        if df_min.at[m_idx, 'open'] > df_min.at[m_idx, 'day_upperB_open'] * 1.03:
                             break
-                        else:
-                            buy_price = df_min.at[m_idx, 'open']
-                    else:
+                        buy_price = df_min.at[m_idx, 'open']
+                        position = True
+                    # 첫 시초가가 과다하게 높으면 일단 pass했다가 다음에 잡힌다.
+                else:
+                    if (df_min.at[m_idx, 'close'] > df_min.at[m_idx, 'day_upperB']) \
+                            and (df_min.at[m_idx, 'day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * multiple):
                         buy_price = df_min.at[m_idx, 'close']
-                        # break
-                    # position = True
-                    if mi + 1 != len(df_min.index):
-                        lowest_after_buy = min(df_min['low'][mi+1:len(df_min.index)])
-                        down_rate = round((lowest_after_buy / buy_price - 1) * 100, 2)
-                        highest_after_buy = max(df_min['high'][mi+1:len(df_min.index)])
-                        up_rate = round((highest_after_buy / buy_price - 1) * 100, 2)
-                    else:
-                        lowest_after_buy = buy_price
-                        down_rate = 0
-                        highest_after_buy = buy_price
-                        up_rate = 0
+                        position = True
 
-                    sell_price = df_day.at[idx, '익일시가']
+                    if position:
+                        if mi + 1 != len(df_min.index):
+                            lowest_after_buy = min(df_min['low'][mi+1:len(df_min.index)])
+                            down_rate = round((lowest_after_buy / buy_price - 1) * 100, 2)
+                            highest_after_buy = max(df_min['high'][mi+1:len(df_min.index)])
+                            up_rate = round((highest_after_buy / buy_price - 1) * 100, 2)
+                        else:
+                            lowest_after_buy = buy_price
+                            down_rate = 0
+                            highest_after_buy = buy_price
+                            up_rate = 0
 
-                    profit = sell_price - buy_price
-                    profit_per = round(profit / buy_price * 100, 2)
-                    # print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
+                        sell_price = df_day.at[idx, '익일시가']
 
-                    juga_ratio = round((df_day.at[idx, '익일시가'] - df_day.at[idx, 'close']) / df_day.at[idx, 'close']
-                                       * 100, 2)
-                    df_kosdaq = self.df_kosdaq_jisu.loc[self.df_kosdaq_jisu.index == idx]
-                    jisu_ratio = round((df_kosdaq.at[idx, '익일시가'] - df_kosdaq.at[idx, 'close']) /
-                                       df_kosdaq.at[idx, 'close'] * 100, 2)
+                        profit = sell_price - buy_price
+                        profit_per = round(profit / buy_price * 100, 2)
+                        # print('deal', table, m_idx, buy_price, sell_price, '순손익', profit)
 
-                    self.df_deal.loc[len(self.df_deal)] = [table, m_idx,
-                                                           buy_price, sell_price,
-                                                           profit, profit_per,
-                                                           lowest_after_buy,
-                                                           down_rate,
-                                                           highest_after_buy,
-                                                           up_rate,
-                                                           df_day.at[idx, '전일종가'],
-                                                           df_day.at[idx, 'open'],
-                                                           df_day.at[idx, 'high'],
-                                                           df_day.at[idx, 'low'],
-                                                           df_day.at[idx, 'close'],
-                                                           int(df_day.at[idx, 'volume_mean20']),
-                                                           df_day.at[idx, 'volume_ratio'],
-                                                           df_min.at[m_idx, 'cum_volume'],
-                                                           df_min.at[m_idx, 'volume_ratio'],
-                                                           df_day.at[idx, '밴드상단'],
-                                                           df_min.at[m_idx, 'day_upperB'],
-                                                           df_day.at[idx, '전일밴드폭'] * multiple,
-                                                           juga_ratio, jisu_ratio,
-                                                           ]
-                    logging.info(
-                        f"DealPoint {table} {m_idx} {buy_price} {sell_price} {df_min.at[m_idx, 'day_upperB']} "
-                        f"{df_day.at[idx, '밴드상단']} {df_day.at[idx, 'close']}")
+                        juga_ratio = round((df_day.at[idx, '익일시가'] - df_day.at[idx, 'close']) / df_day.at[idx, 'close']
+                                           * 100, 2)
+                        df_kosdaq = self.df_kosdaq_jisu.loc[self.df_kosdaq_jisu.index == idx]
+                        jisu_ratio = round((df_kosdaq.at[idx, '익일시가'] - df_kosdaq.at[idx, 'close']) /
+                                           df_kosdaq.at[idx, 'close'] * 100, 2)
 
-                    break  # 첫돌파만 매수, 나머지는 pass
+                        self.df_deal.loc[len(self.df_deal)] = [table, m_idx,
+                                                               buy_price, sell_price,
+                                                               profit, profit_per,
+                                                               lowest_after_buy,
+                                                               down_rate,
+                                                               highest_after_buy,
+                                                               up_rate,
+                                                               df_day.at[idx, '전일종가'],
+                                                               df_day.at[idx, 'open'],
+                                                               df_day.at[idx, 'high'],
+                                                               df_day.at[idx, 'low'],
+                                                               df_day.at[idx, 'close'],
+                                                               int(df_day.at[idx, 'volume_mean20']),
+                                                               df_day.at[idx, 'volume_ratio'],
+                                                               df_min.at[m_idx, 'cum_volume'],
+                                                               df_min.at[m_idx, 'volume_ratio'],
+                                                               df_day.at[idx, '밴드상단'],
+                                                               df_min.at[m_idx, 'day_upperB'],
+                                                               df_day.at[idx, '전일밴드폭'] * multiple,
+                                                               juga_ratio, jisu_ratio,
+                                                               ]
+                        logging.info(
+                            f"DealPoint {table} {m_idx} {buy_price} {sell_price} {df_min.at[m_idx, 'day_upperB']} "
+                            f"{df_day.at[idx, '밴드상단']} {df_day.at[idx, 'close']}")
+
+                        break  # 하루 중 매수는 한번만 한다. 즉, position이 일어나면 다음봉으로 스킵
             # print('분봉데이터 작성 소요시간', time.time() - start)
 
 
@@ -856,13 +873,12 @@ class PointWindow(QWidget):
 
 
 if __name__ == '__main__':
-    btest = BollingerTesting()
-    start_time = time.time()
-    core = os.cpu_count()
-    with Pool(core) as p:
-        p.map(btest.startTrader, np.arange(1.1, 4.1, 0.1))
-    btest.startTrader(1.1)
-    print('총소요시간', time.time() - start_time)
+    # btest = BollingerTesting()
+    # start_time = time.time()
+    # core = os.cpu_count()
+    # with Pool(core) as p:
+    #     p.map(btest.startTrader, np.arange(1.1, 4.1, 0.1))
+    # print('총소요시간', time.time() - start_time)
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
     deal_profit.show()
