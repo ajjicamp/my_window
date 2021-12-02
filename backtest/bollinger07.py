@@ -29,10 +29,11 @@ class BollingerTrader:
         self.startTrader(self.table_list)
 
     def startTrader(self, table_list):
+        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익'])
         multiple = 1.1
         # DB에서 종목별 일봉데어터를 가져와서 필요한 컬럼항목 추가하고 매수조건 필터링
         start_time = time.time()
-        for i, table in enumerate(table_list[:20]):
+        for i, table in enumerate(table_list[:100]):
             # print('table', i, table)
             con = sqlite3.connect(DB_KOSDAQ_DAY)
             df_day = pd.read_sql(f"SELECT * FROM '{table}' WHERE 일자 >= 20201001 and 일자 <= 20211005 ORDER BY 일자", con,
@@ -80,18 +81,59 @@ class BollingerTrader:
 
             df_day['익일시가'] = df_day['open'].shift(-1)
             df_day['전일종가'] = df_day['close'].shift(1)
-            print(df_day)
+            # print(df_day)
             # input()
 
             # 시초가밴드 설정
             # print(f"시물레이션 중 {table}... {i + 1} / {len(self.table_list)}")
             self.codeTrading(table, df_day)  # 종목별로 날짜를 달리하여 여러개의 deal이 있을 수 있다.
+        print('deal결과', self.df_deal)
         print('소요시간', time.time() - start_time)
 
     def codeTrading(self, table, df_day):
-        buy_cond_open = df_day['시가밴드돌파'] & df_day['시가밴드확장률OK'] & (df_day['전일밴드폭'] != 0) \
+        # buy_cond_open = df_day['시가밴드돌파'] & df_day['시가밴드확장률OK'] & (df_day['전일밴드폭'] != 0) \
+        #            & (df_day.index >= '2021-03-01')
+        buy_cond_open = (df_day['전일밴드폭'] != 0) \
                    & (df_day.index >= '2021-03-01')
         buy_cond = df_day['밴드돌파'] & df_day['밴드확장률OK'] & (df_day['전일밴드폭'] != 0) & (df_day.index >= '2021-03-01')
+        df_day = df_day[buy_cond_open]
+        # df_day = df_day[buy_cond_open | buy_cond]
+        print('필터링 df', table, len(df_day))
+        # input()
+        count = 0
+        for i, idx in enumerate(df_day.index):  # 10/5, 5/1, 8/31 등의 필터링된 일봉데이터 여러개
+            position = False
+            buy_price = None
+            sell_price = None
+            profit = None
+            # midx = None
+
+            # 분봉데이터 설정
+            print('day_cond', df_day[df_day['시가밴드돌파'] & df_day['시가밴드확장률OK'] & df_day['전일밴드폭']])
+            if df_day.at[idx, '시가밴드돌파'] & df_day.at[idx, '시가밴드확장률OK'] & (df_day.at[idx, '전일밴드폭'] != 0):
+                print('시가돌파하였음')
+                buy_price = df_day.at[idx, 'open']
+                position = True
+                sell_price = df_day.at[idx, '익일시가']
+                profit = sell_price - buy_price
+            else:
+                df_min = self.set_minute_data(table, df_day, i, idx)
+                cond = df_min[df_min['밴드돌파'] & df_min['밴드확장률OK'] & df_min['밴드폭120하위']]
+                print('조건부합df', cond)
+                for mi, midx in enumerate(df_min.index):
+                    if df_min.at[midx, '밴드돌파'] & df_min.at[midx, '밴드확장률OK'] & df_min.at[midx, '밴드폭120하위'] \
+                            & (df_day.at[idx, '전일밴드폭'] != 0):
+                        # print('종가돌파하였음')
+                        buy_price = df_min.at[midx, 'close']
+                        position = True
+                        sell_price = df_day.at[idx, '익일시가']
+                        profit = sell_price - buy_price
+                        break
+            if position:
+                print('deal명세')
+                self.df_deal.loc[len(self.df_deal)] = [table, midx, buy_price, sell_price, profit]
+
+    def set_minute_data(self, table, df_day, i, idx):
         chl_avrg_list, chl_list = None, None
         def _mean20_cal(data, chl_avrg_list):
             # 일봉데이터의 19일치 종고저평균데이터
@@ -106,83 +148,41 @@ class BollingerTrader:
             lowerB = round((mean20 - std20 * 2))
             return mean20, upperB, lowerB
 
-        self.count = 0
-        for i, idx in enumerate(df_day.index):  # 고가돌파 및 밴드폭확장조건을 충족한 필터링된 데이터
-            # 고가돌파한 당일의 분봉데이터 가져와서 조건검색 ===> # 이조건에 해당하는 날짜가 여러개일 수 있다.
-            start = time.time()
-            self.count += 1
-            position = False
+        xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
 
-            if buy_cond_open:   # 시가에 사는 조건이면 분봉데이터가 불필요.
-                buy_price = df_day.at[idx, 'open']
-                sell_price = df_day.at[idx, '익일시가']
+        # 분봉차트에 일봉 볼린저밴드를 나타내기 위하여 일봉데이터의 19일치(1일전~20일전) 종고저데이터 리스트를 만듦.
+        chl_avrg_list = []  # 리스트 초기화  # 초기화하지 않으면 계속 누적됨.
+        chl_avrg_list = df_day['종고저평균'].to_list()[i - 19:i]  # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
 
-                # position = True
-            else:
-                if buy_cond:    # 분봉데이터를 가져와서 매수가, 매도가, 돌파시간,
-                    position = True
-                
-            if position:
-                sell_price = df_day.at[idx, '익일시가']
+        # 분봉데이터 가져오기
+        con = sqlite3.connect(DB_KOSDAQ_MIN)
+        df_min = pd.read_sql(f"SELECT * FROM '{table}' WHERE 체결시간 LIKE '{xdate}%' ORDER BY 체결시간", con,
+                             index_col='체결시간', parse_dates='체결시간')
+        con.close()
 
+        df_min.index.name = 'date'
+        df_min.columns = ['close', 'open', 'high', 'low', 'volume']
+        df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
+        # -----------------------------------------------
+        df_min['next_open'] = df_min['open'].shift(-1)
+        df_min['cum_volume'] = df_min['volume'].cumsum()
+        df_min['volume_ratio'] = \
+            df_min['cum_volume'].apply(lambda x: round(x / df_day.at[idx, 'volume_mean20'], 1))
+        df_min['highest'] = df_min['high'].cummax()
+        df_min['lowest'] = df_min['low'].cummin()
+        df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
 
+        # 일봉 볼린저밴드 계산
+        df_min['day_mean20'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
+        df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
+        df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
+        df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
 
-
-
-            xdate = idx.strftime("%Y%m%d")  # 날짜인덱스
-
-            # 분봉차트에 일봉 볼린저밴드를 나타내기 위하여 일봉데이터의 19일치(1일전~20일전) 종고저데이터 리스트를 만듦.
-            chl_avrg_list = []  # 리스트 초기화  # 초기화하지 않으면 계속 누적됨.
-            chl_avrg_list = df_day['종고저평균'].to_list()[i - 19:i]  # 왜 i가 전일이 되는가 하면 슬라이싱할때 마지막 값은 포함하지 않기 때문임.
-
-            # 분봉데이터 가져오기
-            con = sqlite3.connect(DB_KOSDAQ_MIN)
-            df_min = pd.read_sql(f"SELECT * FROM '{table}' WHERE 체결시간 LIKE '{xdate}%' ORDER BY 체결시간", con,
-                                 index_col='체결시간', parse_dates='체결시간')
-            con.close()
-
-            df_min.index.name = 'date'
-            df_min.columns = ['close', 'open', 'high', 'low', 'volume']
-            df_min = df_min[['open', 'high', 'low', 'close', 'volume']]
-            # -----------------------------------------------
-            df_min['next_open'] = df_min['open'].shift(-1)
-            df_min['cum_volume'] = df_min['volume'].cumsum()
-            df_min['volume_ratio'] = \
-                df_min['cum_volume'].apply(lambda x: round(x / df_day.at[idx, 'volume_mean20'], 1))
-            df_min['highest'] = df_min['high'].cummax()
-            df_min['lowest'] = df_min['low'].cummin()
-            df_min['종고저평균'] = (df_min['highest'] + df_min['lowest'] + df_min['close']) / 3
-
-            # 일봉 볼린저밴드 계산
-            df_min['day_mean20'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
-            df_min['day_upperB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
-            df_min['day_lowerB'] = df_min['종고저평균'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
-            df_min['day_bandWidth'] = (df_min['day_upperB'] - df_min['day_lowerB']) / df_min['day_mean20']
-
-            df_min['종가돌파'] = df_min['close'] > df_min['day_upperB']
-            df_min['종가밴드확장'] = df_min['day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.1
-            df_min['종가밴드폭120하위'] = df_min['day_bandWidth'] < \
-                                   ((df_day.at[idx, '밴드120폭최고'] - df_day.at[idx, '밴드120폭최저']) * 0.2)
-
-            # 시초가 기준 볼린저밴드를 계산(시초가는 이기준으로 접근)
-            df_min['day_mean20_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[0])
-            df_min['day_upperB_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[1])
-            df_min['day_lowerB_open'] = df_min['open'].apply(lambda x: _mean20_cal(x, chl_avrg_list)[2])
-            df_min['day_bandWidth_open'] = (df_min['day_upperB_open'] - df_min['day_lowerB_open']) / \
-                                           df_min['day_mean20_open']
-            df_min['시가돌파'] = df_min['open'] > df_min['day_upperB_open']
-            df_min['시가밴드확장'] = df_min['day_bandWidth_open'] > df_day.at[idx, '전일밴드폭'] * 1.1
-            df_min['시가밴드폭120하위'] = df_min['day_bandWidth_open'] < \
-                   ((df_day.at[idx, '밴드120폭최고'] - df_day.at[idx, '밴드120폭최저']) * 0.2)
-
-            # df = df_min[df_min['시가돌파'] & df_min['시가밴드확장'] & df_min['시가밴드폭120하위']]
-            df = df_min[df_min['시가돌파']]
-            if len(df) != 0:
-                print('시가기준', table, idx, len(df))
-            else:
-                # df = df_min[df_min['종가돌파'] & df_min['종가밴드확장'] & df_min['종가밴드폭120하위']]
-                df = df_min[df_min['종가돌파']]
-                print('종가기준', table, idx, len(df))
+        df_min['밴드돌파'] = df_min['close'] > df_min['day_upperB']
+        df_min['밴드확장률OK'] = df_min['day_bandWidth'] > df_day.at[idx, '전일밴드폭'] * 1.1
+        df_min['밴드폭120하위'] = df_min['day_bandWidth'] < \
+                               ((df_day.at[idx, '밴드120폭최고'] - df_day.at[idx, '밴드120폭최저']) * 0.2)
+        return df_min
 
 
 if __name__ == '__main__':
