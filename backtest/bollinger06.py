@@ -526,6 +526,7 @@ class PointWindow(QWidget):
         tdate = pd.to_datetime(deal_time[:8])
 
         fig = plt.figure(figsize=(15, 9))
+
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
                                height_ratios=[3, 1],

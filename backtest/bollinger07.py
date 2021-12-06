@@ -16,6 +16,10 @@ import matplotlib.pyplot as plt
 import logging
 from multiprocessing import Pool, Process, Lock
 
+plt.rc('font', family='Malgun Gothic')
+plt.rcParams['axes.unicode_minus'] = False  # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
+
+
 PATH ="C:/Users/USER/PycharmProjects/my_window/backtest"
 DB_KOSDAQ_DAY = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(day).db"
 DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
@@ -44,7 +48,7 @@ class BollingerTrader:
         self.startTrader(self.table_list)
 
     def startTrader(self, table_list):
-        self.df_deal = pd.DataFrame(columns=['종목번호', '체결시간', '매수가', '매도가', '순이익', '순이익률', '최고가', '최저가', '익일시가'])
+        self.df_deal = pd.DataFrame(columns=['종목번호', '매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '최고가', '최저가', '익일시가'])
         self.df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '매수가합계', '순이익합계', '순이익률'])
 
         # DB에서 종목별 일봉데어터를 가져와서 필요한 컬럼항목 추가하고 매수조건 필터링
@@ -107,7 +111,8 @@ class BollingerTrader:
         table_name = f"deal_{str(round(multiple, 1))}"
         # table_name = 'boll_1.1'
 
-        self.df_deal['체결시간'] = self.df_deal['체결시간'].apply(lambda _: _.replace('-', '').replace(' ', '').replace(':', ''))
+        self.df_deal['매수시간'] = self.df_deal['매수시간'].apply(lambda _:
+                                                          _.replace('-', '').replace(' ', '').replace(':', '')[:-2])
         self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
         con.close()
 
@@ -138,14 +143,15 @@ class BollingerTrader:
             buy_price = None
             sell_price = None
             profit = None
-            stime = None
+            buy_time = None
+            deal_not_open = False
 
             # 분봉데이터 설정
             df_min = self.set_minute_data(table, df_day, i, idx)
             if df_day.at[idx, '시가밴드돌파'] & df_day.at[idx, '시가밴드확장률OK'] & (df_day.at[idx, '전일밴드폭'] != 0):
                 buy_price = df_day.at[idx, 'open']
-                stime = idx.strftime("%Y-%m-%d") + ' 09:00:00'
-                df_min.loc[stime, 'position'] = 1
+                buy_time = idx.strftime("%Y-%m-%d") + ' 09:00:00'
+                df_min.loc[buy_time, 'position'] = 1
                 position = True
 
             if not position:
@@ -154,22 +160,39 @@ class BollingerTrader:
 
                 if len(data) != 0:
                     buy_price = data['close'][0]
-                    stime = str(data.index.to_list()[0])
-                    # print(stime, type(stime))
-                    df_min.loc[stime, 'position'] = 1
+                    buy_time = str(data.index.to_list()[0])
+                    # print(buy_time, type(buy_time))
+                    df_min.loc[buy_time, 'position'] = 1
                     position = True
+                    deal_not_open = True
 
             if position:
-
                 # trailing stop loss 설정 ; 매수후 최고가에서 1% 하락시 매도
                 # 매수후 누적최고가 산출
                 df_min['highest'] = df_min.loc[df_min['position'].cumsum().astype('bool'), 'close'].cummax()
                 df_min['sell_signal'] = df_min['close'] < df_min['highest'] * 0.99
+
                 # print('sell_signal', df_min['sell_signal'])
-                if True in df_min['sell_signal']:
-                    sell_price = df_min.loc[df_min['sell_signal'], 'close'][0]
+                # if True in df_min['sell_signal']:
+                sell_price_series = df_min.loc[df_min['sell_signal'], 'close']  # 한개컬럼은 시리즈이다.
+                # print('sell_price_df', sell_price_series)
+                if len(sell_price_series) != 0:
+                    # sell_price = sell_price_df['close'][0]
+                    sell_price = sell_price_series[0]
+                    sell_time = sell_price_series.index[0].strftime("%Y%m%d%H%M")
                 else:
                     sell_price = df_day.at[idx, '익일시가']
+                    # 'i + 1'은 연속된 날짜의 뒷날이 아니다. 필터된 날 중 다음날이다.
+                    sell_time = '익일시가'
+
+                # print(f"{table} \n매수시간: {buy_time} \n매수가{buy_price} \nsell_price_df\n {sell_price_df} \n매도가: {sell_price}")
+                # input()
+
+                # if deal_not_open:
+                #     print('길이비교', len(df_min), len(df_min['highest']), df_min['highest'], df_min['sell_signal'])
+                #     input()
+
+
                 # print('sell_pirce', sell_price)
 
                 after_highest = df_min.loc[df_min['position'].cumsum().astype('bool'), 'high'].max()
@@ -179,7 +202,7 @@ class BollingerTrader:
                 profit = sell_price - buy_price
                 profit_rate = profit / buy_price * 100
 
-                self.df_deal.loc[len(self.df_deal)] = [table, stime, buy_price, sell_price, profit,
+                self.df_deal.loc[len(self.df_deal)] = [table, buy_time, buy_price, sell_time, sell_price, profit,
                                                        round(profit_rate, 2), after_highest, after_lowest,
                                                        df_day.at[idx, '익일시가']]
 
@@ -323,7 +346,7 @@ class PointWindow(QWidget):
         # print('dbname', db_name)
         df = pd.read_sql(f"SELECT * FROM '{table_name}'", con)
         con.close()
-        df['0900'] = df['체결시간'].apply(lambda x: x[8:] == '0900')
+        # df['0900'] = df['매수시간'].apply(lambda x: x[8:] == '0900')
         # df = df[df['0900']]
 
         column_count = len(df.columns)
@@ -368,10 +391,10 @@ class PointWindow(QWidget):
             # print('row', row)
             deal_time = self.table.item(row, 1).text()  # 202109160909
             buy_price = float(self.table.item(row, 2).text())
-            sell_price = float(self.table.item(row, 3).text())
+            sell_price = float(self.table.item(row, 4).text())
 
             df_2 = self.get_day_data(code, deal_time)
-            df_day = df_2[0]
+            df_day = df_2[0]  # df_2 ; (df_day, df_jisu) tuple
             df_jisu = df_2[1]
             self.fig = None
             self.drawDayChart(code, df_day, deal_time, buy_price, sell_price, df_jisu)  # tdate ;  2021-09-16 형식
@@ -380,12 +403,6 @@ class PointWindow(QWidget):
         self.table.cellClicked.connect(cell_clicked)
         # print('self_table 객체', self.table)
         self.show()
-
-    # 마우스이벤트 예시
-    def mouseMoveEvent(self, event):
-        it = self.item(self.rowCount(), 1)
-        it.QToolTip.showText('Insert')
-        self.onHovered()
 
     def get_day_data(self, code, deal_time):
 
@@ -396,11 +413,13 @@ class PointWindow(QWidget):
         start = str(start.strftime("%Y%m%d"))
         end = str(end.strftime("%Y%m%d"))
 
-        # print('start', start, type(start))
+        print('start', start, type(start), end)
+
         con = sqlite3.connect(DB_KOSDAQ_DAY)
         df_day = pd.read_sql(f"SELECT * FROM '{code}' WHERE 일자 > {start} and 일자 <= {end} "
                              f"ORDER BY 일자", con, index_col='일자', parse_dates='일자')
         con.close()
+
         df_day.index.name = 'date'
         df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
         df_day = df_day[['open', 'high', 'low', 'close', 'volume', 'amount']]
@@ -422,16 +441,19 @@ class PointWindow(QWidget):
                               f"ORDER BY date", con, index_col='date', parse_dates='date')
         con.close()
 
+        print('df_day, df_jisu', df_day, df_jisu)
+
         return df_day, df_jisu
 
     # 구 mpl_finace를 이용하여 그리는 candle차트
     def drawDayChart(self, code, df_day, deal_time, buy_price, sell_price, df_jisu):
         # if not self.fig == None:
         plt.close()
+        # plt.show()
 
         # 차트가 있으면 지우고 새로 그린다.
         tdate = pd.to_datetime(deal_time[:8])
-
+        # print('tdate', tdate)
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
@@ -440,7 +462,6 @@ class PointWindow(QWidget):
                                )
         fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=0.01)
         # fig.subplots_adjust(left=0.10, bottom=0.10, right=0.95, top=0.95, wspace=0.1, hspace=1.01)
-
         ax1 = fig.add_subplot(gs[0])
         ax2 = fig.add_subplot(gs[1], sharex=ax1)
         candlestick2_ohlc(ax1, df_day['open'], df_day['high'], df_day['low'],
@@ -482,7 +503,6 @@ class PointWindow(QWidget):
         # annotation 설정
         # x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
         x_ = df_day.index.to_list().index(tdate)
-        print('x_', x_)
         y_ = buy_price
         ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 20, y_),
                      arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
@@ -491,6 +511,7 @@ class PointWindow(QWidget):
         ax1.annotate(f'매도:{str(int(sell_price))}', (x_ + 1, y2_), xytext=(x_ + 10, y2_ * 1.05),
                      arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='b', alpha=0.2))
+
 
         def motion_notify_event(event):
             # print(ax1.texts[0], len(ax1.texts))
@@ -558,7 +579,8 @@ class PointWindow(QWidget):
             # print('분봉날짜', date)
 
         fig.canvas.mpl_connect("button_press_event", mouse_click_event)
-        fig.show()
+        plt.show()
+        # fig.show()
         # print('축정보', ax1.axis()[2])
 
     def get_minute_data(self, code, date, volume20, chl19, BWidth_1):  # BWidth_1 ; 전일밴드폭
