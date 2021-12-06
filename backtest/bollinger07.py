@@ -27,7 +27,7 @@ DB_DEAL_DETAILS = f"{PATH}/bollinger07.db"
 DB_DEAL_PROFIT = f"{PATH}/deal_profit07.db"
 
 multiple = 1.2
-max_width = 0.5
+max_width = 0.2
 
 
 class BollingerTrader:
@@ -48,7 +48,8 @@ class BollingerTrader:
         self.startTrader(self.table_list)
 
     def startTrader(self, table_list):
-        self.df_deal = pd.DataFrame(columns=['종목번호', '매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '최고가', '최저가', '익일시가'])
+        self.df_deal = pd.DataFrame(columns=['종목번호', '매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률',
+                                             '최고가', '최저가', '익일시가'])
         self.df_dealProfit = pd.DataFrame(columns=['밴드폭확장률', '매수가합계', '순이익합계', '순이익률'])
 
         # DB에서 종목별 일봉데어터를 가져와서 필요한 컬럼항목 추가하고 매수조건 필터링
@@ -63,7 +64,11 @@ class BollingerTrader:
             df_day.index.name = 'date'
             df_day.columns = ['close', 'open', 'high', 'low', 'volume', 'amount']
             df_day = df_day[['open', 'high', 'low', 'close', 'volume']]
-
+            df_day['index'] = df_day.index.values
+            df_day['before_index'] = df_day['index'].shift(1)
+            # df_day['before_index'] = df_day.index.shift(freq=1)
+            # print(df_day['before_index'])
+            # input()
             # 밴드폭계산시 20일째날은 고가기준으로 밴드폭을 계산하여 종가기준시 빠지는 사례가 없도록 하자.
             # 종가밴드 설정
             df_day['volume_mean20'] = round(df_day['volume'].rolling(window=20).mean())
@@ -148,7 +153,18 @@ class BollingerTrader:
 
             # 분봉데이터 설정
             df_min = self.set_minute_data(table, df_day, i, idx)
-            if df_day.at[idx, '시가밴드돌파'] & df_day.at[idx, '시가밴드확장률OK'] & (df_day.at[idx, '전일밴드폭'] != 0):
+            # 전일동시간대 거래량체크하기 위하여 전날의 분봉도 가져옴.
+            ydate = df_day.at[idx, 'before_index'].strftime("%Y%m%d")  # 날짜인덱스
+            con = sqlite3.connect(DB_KOSDAQ_MIN)
+            df_min_before = pd.read_sql(f"SELECT 체결시간, 거래량 FROM '{table}' WHERE 체결시간 LIKE '{ydate}%' ORDER BY 체결시간",
+                                        con, index_col='체결시간', parse_dates='체결시간')
+            con.close()
+            df_min_before['누적거래량'] = df_min_before['거래량'].cumsum()
+            df_min['position'] = 0
+
+            if df_day.at[idx, '시가밴드돌파'] & df_day.at[idx, '시가밴드확장률OK'] & \
+                    (df_day.at[idx, '전일밴드폭'] != 0):
+
                 buy_price = df_day.at[idx, 'open']
                 buy_time = idx.strftime("%Y-%m-%d") + ' 09:00:00'
                 df_min.loc[buy_time, 'position'] = 1
@@ -169,17 +185,15 @@ class BollingerTrader:
             if position:
                 # trailing stop loss 설정 ; 매수후 최고가에서 1% 하락시 매도
                 # 매수후 누적최고가 산출
-                df_min['highest'] = df_min.loc[df_min['position'].cumsum().astype('bool'), 'close'].cummax()
-                df_min['sell_signal'] = df_min['close'] < df_min['highest'] * 0.99
+                df_min['highest'] = df_min.loc[df_min['position'].cumsum().astype('bool'), 'high'].cummax()
+                df_min['sell_signal'] = df_min['low'] < df_min['highest'] * 0.99
 
-                # print('sell_signal', df_min['sell_signal'])
-                # if True in df_min['sell_signal']:
-                sell_price_series = df_min.loc[df_min['sell_signal'], 'close']  # 한개컬럼은 시리즈이다.
+                sell_price_df = df_min.loc[df_min['sell_signal']]
                 # print('sell_price_df', sell_price_series)
-                if len(sell_price_series) != 0:
+                if len(sell_price_df) != 0:
                     # sell_price = sell_price_df['close'][0]
-                    sell_price = sell_price_series[0]
-                    sell_time = sell_price_series.index[0].strftime("%Y%m%d%H%M")
+                    sell_price = df_min['highest'][0] * 0.99 * 0.995  # 손절가에서 수수료, 세금 및 슬리피지 합하여 0.5% 공제
+                    sell_time = sell_price_df.index[0].strftime("%Y%m%d%H%M")
                 else:
                     sell_price = df_day.at[idx, '익일시가']
                     # 'i + 1'은 연속된 날짜의 뒷날이 아니다. 필터된 날 중 다음날이다.
@@ -256,7 +270,6 @@ class BollingerTrader:
         df_min['밴드폭120하위'] = df_min['day_bandWidth'] < \
                                ((df_day.at[idx, '밴드120폭최고'] - df_day.at[idx, '밴드120폭최저']) * max_width)
 
-        df_min['position'] = 0
         return df_min
 
 
@@ -802,7 +815,7 @@ class PointWindow(QWidget):
 
 
 if __name__ == '__main__':
-    # bTrader = BollingerTrader()
+    bTrader = BollingerTrader()
     app = QApplication(sys.argv)
     deal_profit = DealProfit()
     deal_profit.show()
