@@ -49,7 +49,7 @@ class MarketJisuDownload:
         self.CommConnect()
 
         # 기존 sqlite3 db를 읽어서 table의 처음부터 끝까지 데이터를 조회하면서 업데이트
-        db_name = "D:/db/market_jisu.db"
+        db_name = "D:/db/market_jisu(1min).db"
         self.marketjisu_download(db_name, "kospi")
         self.marketjisu_download(db_name, "kosdaq")
 
@@ -64,16 +64,20 @@ class MarketJisuDownload:
             b_code = '101'
 
         self.lock.acquire()
-        df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
-                                output='업종일봉조회', next=0)
+        # 일봉다운로드
+        # df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
+        #                         output='업종일봉조회', next=0)
+        # 분봉다운로드
+        df = self.block_request('opt20005', 업종코드=b_code, 틱범위=1,
+                                output='업종분봉조회', next=0)
         self.lock.release()
 
         # column 숫자로 변환
-        int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
+        int_column = ['현재가', '시가', '고가', '저가', '거래량']
         df[int_column] = df[int_column].replace('', 0)
         df[int_column] = df[int_column].astype(int).abs()
 
-        columns = ['일자', '현재가', '시가', '고가', '저가', '거래량', '거래대금']
+        columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
         df = df[columns].copy()
         # df = df[::-1]
         # print('df', df)
@@ -81,20 +85,24 @@ class MarketJisuDownload:
 
         while self.tr_remained == True:
             time.sleep(3.6)
+            # time.sleep(0.2)
             count += 1
             self.lock.acquire()
-            df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
-                                    output='업종일봉조회', next=2)
+            # df = self.block_request('opt20006', 업종코드=b_code, 기준일자=today,
+            #                         output='업종일봉조회', next=2)
+            df = self.block_request('opt20005', 업종코드=b_code, 틱범위=1,
+                                    output='업종뷴봉조회', next=2)
             self.lock.release()
 
             # column 숫자로 변환
-            int_column = ['현재가', '시가', '고가', '저가', '거래량', '거래대금']
+            int_column = ['현재가', '시가', '고가', '저가', '거래량']
             df[int_column] = df[int_column].replace('', 0)
             df[int_column] = df[int_column].astype(int).abs()
 
-            columns = ['일자', '현재가', '시가', '고가', '저가', '거래량', '거래대금']
+            columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
             df = df[columns].copy()
             self.queryQ.put([df, db_name, gubun])
+            print(f"다운로드 중...{count}")
 
         self.queryQ.put('다운로드완료')
 
@@ -344,9 +352,15 @@ class Query:
     def save_sqlite3(self, df, db_name, table_name):
         con = sqlite3.connect(db_name)
         cur = con.cursor()
-        query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, \
-                    현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer, \
-                    거래대금 integer)".format(table_name)
+        # 일봉
+        # query = "CREATE TABLE IF NOT EXISTS {} (일자 text PRIMARY KEY, \
+        #             현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer, \
+        #             거래대금 integer)".format(table_name)
+
+        # 분봉
+        query = "CREATE TABLE IF NOT EXISTS {} (체결시간 text PRIMARY KEY, \
+                    현재가 integer, 시가 integer, 고가 integer, 저가 integer, 거래량 integer \
+                    )".format(table_name)
         cur.execute(query)
         record_data_list = str(tuple(df.apply(lambda x: tuple(x.tolist()), axis=1)))[1:-1]
         if record_data_list[-1] == ',':
