@@ -1,6 +1,6 @@
 import sqlite3
 import sys
-
+from kiwoom import Kiwoom
 import pandas as pd
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
@@ -21,6 +21,34 @@ DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
 
 class GoldenCrossDeal:
     def __init__(self):
+        kiwoom = Kiwoom()
+        kiwoom.CommConnect()
+        # 코스닥지수 다운로드
+        df = kiwoom.block_request('opt20005', 업종코드='101', 틱범위=1,
+                                                    output='업종분봉조회', next=0)
+
+        # todo 여기 작업중
+        int_column = ['현재가', '시가', '고가', '저가', '거래량']
+        df[int_column] = df[int_column].replace('', 0)
+        df[int_column] = df[int_column].astype(int).abs()
+        columns = ['체결시간', '현재가', '시가', '고가', '저가', '거래량']
+        df = df[columns].copy()
+        dfs.append(df)
+
+        df_kospi_min = kiwoom.block_request('opt20005', 업종코드='001', 틱범위=1,
+                                                   output='업종분봉조회', next=0)
+
+        )
+
+
+
+        df_kosdaq_jisu = df_kosdaq_jisu[['일자', '시가', '고가', '저가', '현재가', '거래량', '거래대금']]
+        df_kosdaq_jisu.columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+        df_kosdaq_jisu = df_kosdaq_jisu.reset_index(drop=True).set_index('date')
+        df_kosdaq_jisu = df_kosdaq_jisu.astype(int)
+
+
+
         # 지수차트 가져오기
         start = '20210601'
         end = '20210930'
