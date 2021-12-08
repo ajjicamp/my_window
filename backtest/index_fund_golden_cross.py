@@ -68,8 +68,12 @@ class GoldenCrossDeal:
         print(f"총이익 {profit_sum} 총매수가 {buy_sum} 이익률 {profit_rate}")
 
     def trading(self, df, day_list):
-        df['golden_cross'] = df['5이평'] > df['20이평']
-        df['dead_cross'] = df['20이평'] > df['5이평']
+        df['signal'] = 0.0
+        df['signal'] = np.where(df['5이평'] > df['20이평'], 1.0, 0.0)
+        df['position'] = df['signal'].diff()
+
+        # df['golden_cross'] = df['5이평'] > df['20이평']
+        # df['dead_cross'] = df['20이평'] > df['5이평']
         hold = False
         buy_time = None
         buy_price = None
@@ -85,14 +89,14 @@ class GoldenCrossDeal:
             df_1day = df.loc[day]
             # print('df\n', df)
             for idx in df_1day.index:
-                if df_1day.at[idx, 'golden_cross'] and (not hold):
+                if df_1day.at[idx, 'position'] == 1 and (not hold):
                     buy_time = idx.strftime("%Y%m%d%H%M")
                     buy_price = df_1day.at[idx, 'close']  # 골든크로스가 발생한 봉의 종가에 매수하는 것으로 함.
                     hold = True
 
-                if df_1day.at[idx, 'dead_cross'] and hold:
+                if df_1day.at[idx, 'position'] == -1 and hold:
                     sell_time = idx.strftime("%Y%m%d%H%M")
-                    sell_price = df_1day.at[idx, 'close'] # 골든크로스가 발생한 봉의 종가에 매도하는 것으로 함.
+                    sell_price = df_1day.at[idx, 'close']  # 골든크로스가 발생한 봉의 종가에 매도하는 것으로 함.
                     hold = False
                     profit = sell_price - buy_price
                     self.df_deal.loc[len(self.df_deal)] = [buy_time,
@@ -145,6 +149,7 @@ class DealPoint(QWidget):
         for i in range(0, 15):
             self.table.setColumnWidth(i, 95)
         self.table.setColumnWidth(0, 130)
+        self.table.setColumnWidth(2, 130)
 
         for i, val in enumerate(df.values):
             for col in range(len(df.columns)):
@@ -163,13 +168,20 @@ class DealPoint(QWidget):
         def cell_clicked(row):
             # code = self.table.item(row, 0).text()
             # print('row', row)
-            deal_time = self.table.item(row, 0).text()  # 202109160909
+            buy_time = self.table.item(row, 0).text()  # 202109160909
             buy_price = float(self.table.item(row, 1).text())
-            sell_price = float(self.table.item(row, 2).text())
+            sell_time = self.table.item(row, 2).text()  # 202109160909
+            sell_price = float(self.table.item(row, 3).text())
 
-            df_1day_minute = df.loc[deal_time[:8]]
+            # todo
+            df_1day = df.loc[buy_time[:8]]
+            # start_num = df_1day.index.shift[-20]
+            # end_num = df_1day.index[-1].shift[20]
+            deal_df = df.loc[start_num: end_num]
+            # input()
+
             self.fig = None
-            self.drawDayChart(df_1day_minute, deal_time, buy_price, sell_price)  # tdate ;  2021-09-16 형식
+            self.drawDayChart(deal_df, buy_time, buy_price, sell_time, sell_price)  # tdate ;  2021-09-16 형식
             # self.drawDayChart(df_1day_minute, deal_time)
 
         # self.table.cellClicked.connect(self.cell_clicked)
@@ -198,12 +210,16 @@ class DealPoint(QWidget):
         df = df.dropna()
         df['5이평'] = df['close'].rolling(window=5).mean()
         df['20이평'] = df['close'].rolling(window=20).mean()
-        # print('3분봉', len(df))
+        df['signal'] = np.where(df['5이평'] > df['20이평'], 1.0, 0.0)
+        df['position'] = df['signal'].diff()
+        print('3분봉', df)
+
 
         return df
 
-    def drawDayChart(self, df, deal_time, buy_price, sell_price):
+    def drawDayChart(self, df, buy_time, buy_price, sell_time, sell_price):
         # super().__init__()
+        plt.close()
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
                                ncols=1,  # col 몇 개
@@ -217,14 +233,16 @@ class DealPoint(QWidget):
         x_axes = range(len(df.index))
         # print('min_list', min_list, min_list[0], min_list[-1], df_query['volume_ratio'])
 
-        ax1.plot(x_axes, df['5이평'], color='green', linewidth=2)
-        ax1.plot(x_axes, df['20이평'], color='black', linewidth=2)
-
         candlestick2_ohlc(ax1, df['open'], df['high'], df['low'],
                           df['close'], width=0.8,
                           colorup='r', colordown='b')
+        ax1.plot(x_axes, df['5이평'], color='green', linewidth=2)
+        ax1.plot(x_axes, df['20이평'], color='yellow', linewidth=2)
+        # ax1.plot(df[df[‘position’] == 1].index, df[‘20이평’][df[‘position’] == 1])
 
-        ax1.set_title(f"{deal_time[:8]} 분봉차트", fontsize=20)
+                                   # ‘ ^ ’, markersize = 15, color = ‘g’, label = 'buy')
+        ax1.set_title(f"{buy_time[:8]} 분봉차트", fontsize=20)
+        ax1.set_facecolor('lightgray')
         ax1.legend(['5이평', '20이평'])
         ax1.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
@@ -235,25 +253,48 @@ class DealPoint(QWidget):
         name_list = [v.strftime("%H:%M") for i, v in enumerate(df.index)]
         name_list = [name_list[i] for i in range(0, len(df.index), 5)]
         ax2.set_xticklabels(name_list, rotation=90)
+        ax2.set_facecolor('lightgray')
+        ax2.grid(True, which='major', color='gray', linewidth=0.2)
 
-        # annotation 설정
+        # annotation; 매수가 설정
         # x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
-        x_ = df.index.to_list().index(pd.to_datetime(deal_time))
+        # x,y 좌표값
+        x_ = df.index.to_list().index(pd.to_datetime(buy_time))
         y_ = buy_price
-        # ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_ - 20, y_),
-        ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_, y_),
-                     arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
+
+        # x,y text좌표값,
+        x_text = x_
+        y_highest = df['high'].max()
+        y_lowest = df['low'].min()
+        y_mid = y_lowest + (y_highest - y_lowest) / 2
+        if y_ >= y_mid:
+            y_text = y_ - (y_highest - y_lowest) / 4
+        else:
+            y_text = y_ + (y_highest - y_lowest) / 4
+
+        # ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_text, y_text),
+        ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_text, y_text),
+                     arrowprops=dict(edgecolor='c', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='r', alpha=0.2))
+
+        # 매도가겨 annotation
+        x2_ = df.index.to_list().index(pd.to_datetime(sell_time))
         y2_ = sell_price
-        ax1.annotate(f'매도:{str(int(sell_price))}', (x_ + 1, y2_), xytext=(x_ + 10, y2_ * 1.05),
-                     arrowprops=dict(facecolor='green', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
+        x2_text = x2_
+        if y2_ >= y_mid:
+            y2_text = y2_ - (y_highest - y_lowest) / 3
+        else:
+            y2_text = y2_ + (y_highest - y_lowest) / 3
+
+        ax1.annotate(f'매도:{str(int(sell_price))}', (x2_, y2_), xytext=(x2_text, y2_text),
+                     arrowprops=dict(edgecolor='c', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='b', alpha=0.2))
 
         plt.show()
 
 
 if __name__ == '__main__':
-    deal = GoldenCrossDeal()
+    # deal = GoldenCrossDeal()
     app = QApplication(sys.argv)
     deal_point = DealPoint()
     # drawchart = DrawChart()
