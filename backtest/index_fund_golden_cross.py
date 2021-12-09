@@ -16,8 +16,9 @@ plt.rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False  # 한글 폰트 사용시 마이너스 폰트 깨짐 해결
 
 PATH ="C:/Users/USER/PycharmProjects/my_window/backtest"
-DB_KOSPI_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kospi(1min).db"
-DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
+# DB_KOSPI_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kospi(1min).db"
+# DB_KOSDAQ_MIN = "C:/Users/USER/PycharmProjects/my_window/db/kosdaq(1min).db"
+DB_MARKET_JISU = "C:/Users/USER/PycharmProjects/my_window/backtest/market_jisu(1min).db"
 DB_GOLDEN_CROSS_DEAL = "C:/Users/USER/PycharmProjects/my_window/db/golden_cross_deal.db"
 
 START = '20210601'
@@ -27,7 +28,7 @@ class GoldenCrossDeal:
     def __init__(self):
         # 지수차트 가져오기
         # 지수차트 분봉을 가져와야 한다.
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/market_jisu(1min).db")
+        con = sqlite3.connect(DB_MARKET_JISU)
         df = pd.read_sql(f"SELECT * FROM kosdaq WHERE 체결시간 >= {START} and 체결시간 <= {END} "
                          f"ORDER BY 체결시간", con, index_col='체결시간', parse_dates='체결시간')
         con.close()
@@ -46,10 +47,7 @@ class GoldenCrossDeal:
         df = df.dropna()
         df['5이평'] = df['close'].rolling(window=5).mean()
         df['20이평'] = df['close'].rolling(window=20).mean()
-        # print('3분봉', len(df))
-
         df['new_index'] = df.index.values
-        # print(df['new_index'])
 
         df_groupby = df['new_index'].groupby(df['new_index'].apply(lambda x: str(x)[:10]))
         day_list = df_groupby.size().keys().tolist()
@@ -127,7 +125,7 @@ class DealPoint(QWidget):
         con = sqlite3.connect(DB_GOLDEN_CROSS_DEAL)
         df = pd.read_sql("SELECT * FROM dead_cross", con)
         con.close()
-        print('db에서 읽어온 df\n', df)
+        # print('db에서 읽어온 df\n', df)
         column_count = len(df.columns)
         row_count = len(df)
         self.setGeometry(100, 100, 1800, 900)
@@ -175,13 +173,14 @@ class DealPoint(QWidget):
 
             # todo
             df_1day = df.loc[buy_time[:8]]
-            # start_num = df_1day.index.shift[-20]
-            # end_num = df_1day.index[-1].shift[20]
-            deal_df = df.loc[start_num: end_num]
-            # input()
+            start_num = df.index.to_list().index(df_1day.index[0])
+            end_num = df.index.to_list().index(df_1day.index[-1])
+            deal_df = df.iloc[start_num - 20: end_num + 20]
+            # print('deal_df', deal_df)
+            # print(start_num, end_num)
 
             self.fig = None
-            self.drawDayChart(deal_df, buy_time, buy_price, sell_time, sell_price)  # tdate ;  2021-09-16 형식
+            self.drawDayChart(deal_df, buy_time, buy_price, sell_time, sell_price, start_num, end_num)  # tdate ;  2021-09-16 형식
             # self.drawDayChart(df_1day_minute, deal_time)
 
         # self.table.cellClicked.connect(self.cell_clicked)
@@ -191,7 +190,7 @@ class DealPoint(QWidget):
 
     def get_minute_data(self):
         # 시초가부터 이평선을 그리기 위하여 하루치 분봉만 가져와서는 안되므로 전부 다 가져와서 slicing 해서 사용.
-        con = sqlite3.connect("C:/Users/USER/PycharmProjects/my_window/db/market_jisu(1min).db")
+        con = sqlite3.connect(DB_MARKET_JISU)
         df = pd.read_sql(f"SELECT * FROM kosdaq WHERE 체결시간 >= {START} and 체결시간 <= {END} "
                          f"ORDER BY 체결시간", con, index_col='체결시간', parse_dates='체결시간')
         con.close()
@@ -208,17 +207,15 @@ class DealPoint(QWidget):
         df = pd.concat([df1, df2, df3, df4, df5], axis=1)
         # 결측치 데이터 삭제
         df = df.dropna()
+        df['전봉종가'] = df['close'].shift(1)
         df['5이평'] = df['close'].rolling(window=5).mean()
         df['20이평'] = df['close'].rolling(window=20).mean()
         df['signal'] = np.where(df['5이평'] > df['20이평'], 1.0, 0.0)
         df['position'] = df['signal'].diff()
-        print('3분봉', df)
-
 
         return df
 
-    def drawDayChart(self, df, buy_time, buy_price, sell_time, sell_price):
-        # super().__init__()
+    def drawDayChart(self, df, buy_time, buy_price, sell_time, sell_price, start_num, end_num):  # df; deal_df
         plt.close()
         fig = plt.figure(figsize=(15, 9))
         gs = gridspec.GridSpec(nrows=2,  # row 몇 개
@@ -238,11 +235,16 @@ class DealPoint(QWidget):
                           colorup='r', colordown='b')
         ax1.plot(x_axes, df['5이평'], color='green', linewidth=2)
         ax1.plot(x_axes, df['20이평'], color='yellow', linewidth=2)
-        # ax1.plot(df[df[‘position’] == 1].index, df[‘20이평’][df[‘position’] == 1])
+        # ax1.plot(df_position, df_position_mark, marker=‘^’, markersize = 15, color=‘red’, label = 'buy')
 
-                                   # ‘ ^ ’, markersize = 15, color = ‘g’, label = 'buy')
+        df_crossUp = [df.at[i, '5이평'] * 0.9998 if df.at[i, 'position'] == 1 else np.nan for i in df.index]
+        ax1.scatter(x_axes, df_crossUp, marker='^', c='white', edgecolor='black', s=100)
+
+        df_crossDown = [df.at[i, '5이평'] * 1.0002 if df.at[i, 'position'] == -1 else np.nan for i in df.index]
+        ax1.scatter(x_axes, df_crossDown, marker='v', c='lime', edgecolor='black', s=100)
+
         ax1.set_title(f"{buy_time[:8]} 분봉차트", fontsize=20)
-        ax1.set_facecolor('lightgray')
+        ax1.set_facecolor('gainsboro')
         ax1.legend(['5이평', '20이평'])
         ax1.tick_params(axis='x', top=False, bottom=False, labeltop=False, labelbottom=False, width=0.2, labelsize=11)
         ax1.grid(True, which='major', color='gray', linewidth=0.2)
@@ -253,8 +255,14 @@ class DealPoint(QWidget):
         name_list = [v.strftime("%H:%M") for i, v in enumerate(df.index)]
         name_list = [name_list[i] for i in range(0, len(df.index), 5)]
         ax2.set_xticklabels(name_list, rotation=90)
-        ax2.set_facecolor('lightgray')
+        ax2\
+            .set_facecolor('gainsboro')
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
+
+        ax1.axvline(19.5, 0, 1, color='black', linestyle='--', linewidth=1)
+        ax1.axvline(len(x_axes) - 18.5, 0, 1, color='black', linestyle='--', linewidth=1)
+        ax2.axvline(19.5, 0, 1, color='black', linestyle='--', linewidth=1)
+        ax2.axvline(len(x_axes) - 18.5, 0, 1, color='black', linestyle='--', linewidth=1)
 
         # annotation; 매수가 설정
         # x_ = [i for i, idx in enumerate(df_day.index) if idx.strftime("%Y-%m-%d") == tdate.strftime("%Y-%m-%d")][0]
@@ -290,11 +298,59 @@ class DealPoint(QWidget):
                      arrowprops=dict(edgecolor='c', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='b', alpha=0.2))
 
+        def motion_notify_event(event):
+            # logging.info(f"592r, x좌표={event.xdata}, {event.inaxes == ax1}")
+            if len(ax1.texts) > 2:
+                for txt in ax1.texts:
+                    txt.set_visible(False)
+                ax1.texts[0].set_visible(True)
+                ax1.texts[1].set_visible(True)
+
+            if event.inaxes == ax1:
+                # logging.info(f"x좌표={event.xdata}")
+                xv = round(event.xdata)
+                if (xv < len(df)) and (event.ydata <= df['high'][xv]) and (
+                        event.ydata >= df['low'][xv]):
+                    # fig.canvas.flush_events()
+                    close_1 = df['전봉종가'][xv]
+                    open_ = df['open'][xv]
+                    high_ = df['high'][xv]
+                    low_ = df['low'][xv]
+                    close_ = df['close'][xv]
+
+                    text = f"시간     :{df.index[xv].strftime('%H:%M')}\n" \
+                           f"시가     :{open_} ({round((open_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"고가     :{high_} ({round((high_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"저가     :{low_} ({round((low_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"종가     :{close_} ({round((close_ / close_1 - 1) * 100, 2)}%)\n" \
+                           f"거래량   :{df['volume'][xv]}\n" \
+                           f"\n" \
+                           f"[이평선]\n" \
+                           f"5이평선   :{int(df['5이평'][xv])}\n" \
+                           f"20이평선  :{df['20이평'][xv]}"
+
+                    # y좌표설정
+                    y_highest = df['high'].max()
+                    y_lowest = df['low'].min()
+                    y_mid = y_lowest + (y_highest - y_lowest) / 2
+
+                    if event.ydata >= y_mid:
+                        yv = event.ydata - (y_highest - y_lowest) / 3
+                    else:
+                        yv = event.ydata + (y_highest - y_lowest) / 10
+
+                else:
+                    text = ''
+                    yv = event.ydata
+                ax1.text(xv + 1.5, yv, text, bbox=dict(facecolor='white', alpha=1.0))
+                fig.canvas.draw()
+
+        fig.canvas.mpl_connect("motion_notify_event", motion_notify_event)
         plt.show()
 
 
 if __name__ == '__main__':
-    # deal = GoldenCrossDeal()
+    deal = GoldenCrossDeal()
     app = QApplication(sys.argv)
     deal_point = DealPoint()
     # drawchart = DrawChart()
