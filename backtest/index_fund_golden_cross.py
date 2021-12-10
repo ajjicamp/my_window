@@ -26,6 +26,7 @@ class GoldenCrossDeal:
         self.exitStrategy = exitStrategy
         print('strategy', self.exitStrategy)
         # 지수분봉차트 가져오기
+
         con = sqlite3.connect(DB_MARKET_JISU)
         df = pd.read_sql(f"SELECT * FROM kosdaq WHERE 체결시간 >= {START} and 체결시간 <= {END} "
                          f"ORDER BY 체결시간", con, index_col='체결시간', parse_dates='체결시간')
@@ -49,21 +50,21 @@ class GoldenCrossDeal:
 
         df_groupby = df['new_index'].groupby(df['new_index'].apply(lambda x: str(x)[:10]))
         day_list = df_groupby.size().keys().tolist()
-        self.df_deal = pd.DataFrame(columns=['매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률'])
+        self.df_deal = pd.DataFrame(columns=['매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '매수시간대'])
 
         self.trading(df, day_list)
         print('deal결과\n', self.df_deal)
 
         con = sqlite3.connect(DB_GOLDEN_CROSS_DEAL)
-        table_name = 'dead_cross'
+        table_name = self.exitStrategy
         self.df_deal.to_sql(table_name, con, if_exists='replace', index=False)
         con.close()
 
-        profit_sum = self.df_deal['순이익'].sum()
-        buy_sum = self.df_deal['매수가'].sum()
-        profit_rate = round(profit_sum / buy_sum * 100, 2)
-        print(f"총이익 {profit_sum} 총매수가 {buy_sum} 이익률 {profit_rate}")
-
+        if not len(self.df_deal) == 0:
+            profit_sum = self.df_deal['순이익'].sum()
+            buy_sum = self.df_deal['매수가'].sum()
+            profit_rate = round(profit_sum / buy_sum * 100, 2)
+            print(f"총이익 {profit_sum} 총매수가 {buy_sum} 이익률 {profit_rate}")
     def trading(self, df, day_list):
         # CrossUp 매수 설정(CrossDown매도 포함)
         df['signal'] = 0.0
@@ -94,58 +95,91 @@ class GoldenCrossDeal:
 
             df_1day = df.loc[day]
             if self.exitStrategy == 'CrossDown':
-                for idx in df_1day.index:
+                for idx in df_1day.index:   # 하루치 분봉이다.
                     if df_1day.at[idx, 'trigger'] == 1 and (position == 0):
-                        buy_time = idx.strftime("%Y%m%d%H%M")
+                        buy_time = idx
                         buy_price = df_1day.at[idx, 'close']  # 골든크로스가 발생한 봉의 종가에 매수하는 것으로 함.
                         position = position + 1
 
                     # CrossDown 매도전략
                     if df_1day.at[idx, 'trigger'] == -1 and (position > 0):
-                        sell_time = idx.strftime("%Y%m%d%H%M")
+                        sell_time = idx
                         sell_price = df_1day.at[idx, 'close'] * position  # 골든크로스가 발생한 봉의 종가에 매도하는 것으로 함.
                         position = 0
                         profit = sell_price - buy_price
-                        self.df_deal.loc[len(self.df_deal)] = [buy_time,
+                        self.df_deal.loc[len(self.df_deal)] = [buy_time.strftime("%Y%m%d%H%M"),
                                                                buy_price,
-                                                               sell_time,
+                                                               sell_time.strftime("%Y%m%d%H%M"),
                                                                sell_price,
                                                                profit,
-                                                               round((profit / buy_price) * 100, 2)
+                                                               round((profit / buy_price) * 100, 2),
+                                                               buy_time.strftime("%H%M"),
                                                                ]
                     # 당일포지션 종가청산
                     if idx == df_1day.index.values[-1] and position > 0:
-                        sell_time = idx.strftime("%Y%m%d%H%M")
+                        sell_time = idx
                         sell_price = df_1day.at[idx, 'close'] * position  # 당일종가에 보유 position 모두 청산
                         profit = sell_price - buy_price
                         position = 0
-                        self.df_deal.loc[len(self.df_deal)] = [buy_time,
+                        self.df_deal.loc[len(self.df_deal)] = [buy_time.strftime("%Y%m%d%H%M"),
                                                                buy_price,
-                                                               sell_time,
+                                                               sell_time.strftime("%Y%m%d%H%M"),
                                                                sell_price,
                                                                profit,
-                                                               round((profit / buy_price) * 100, 2)
+                                                               round((profit / buy_price) * 100, 2),
+                                                               buy_time.strftime("%H%M"),
                                                                ]
 
                 # trailing stop 전략
             elif exitStrategy == 'TrailingStop':
                 for i, idx in enumerate(df_1day.index):
                     # buy condition
-                    if df_1day.at[idx, 'trigger'] == 1:
-                        buy_time = idx.strftime("%Y%m%d%H%M")
+                    if df_1day.at[idx, 'trigger'] == 1 and (position == 0):
+                        buy_time = idx
                         buy_price = df_1day.at[idx, 'close']  # 골든크로스가 발생한 봉의 종가에 매수하는 것으로 함.
                         position = position + 1
                         # 매수후 가격변동을 체크하기 위하여 설정
-                        pro_profit = df['high'] - buy_price
+                        continue    # 매수한 봉은 pass하고 다음 봉부터 sell_condition 검토
 
-                    # if position > 0:
+                    if position > 0 and idx != buy_time:
+                        highest = df.loc[buy_time: idx].high.max()
+                        print('highest', day, highest)
+                        if df_1day.at[idx, 'high'] < highest * 0.998:
+                            sell_time = idx
+                            sell_price = df_1day.at[idx, 'close']
+                            profit = sell_price - buy_price
+                            position = 0
+                            self.df_deal.loc[len(self.df_deal)] = [buy_time.strftime("%Y%m%d%H%M"),
+                                                                   buy_price,
+                                                                   sell_time.strftime("%Y%m%d%H%M"),
+                                                                   sell_price,
+                                                                   profit,
+                                                                   round((profit / buy_price) * 100, 2),
+                                                                   buy_time.strftime("%H%M"),
+                                                                   ]
+
+
+                    # 당일포지션 종가청산
+                    if idx == df_1day.index.values[-1] and position > 0:
+                        sell_time = idx
+                        sell_price = df_1day.at[idx, 'close'] * position  # 당일종가에 보유 position 모두 청산
+                        profit = sell_price - buy_price
+                        position = 0
+                        self.df_deal.loc[len(self.df_deal)] = [buy_time.strftime("%Y%m%d%H%M"),
+                                                               buy_price,
+                                                               sell_time.strftime("%Y%m%d%H%M"),
+                                                               sell_price,
+                                                               profit,
+                                                               round((profit / buy_price) * 100, 2),
+                                                               buy_time.strftime("%H%M"),
+                                                               ]
 
 
 class DealPoint(QWidget):
-    def __init__(self):
+    def __init__(self, exitStrategy):
         super().__init__()
         con = sqlite3.connect(DB_GOLDEN_CROSS_DEAL)
-        df = pd.read_sql("SELECT * FROM dead_cross", con)
+        df = pd.read_sql(f"SELECT * FROM {exitStrategy}", con)
         con.close()
         # print('db에서 읽어온 df\n', df)
         column_count = len(df.columns)
@@ -271,10 +305,12 @@ class DealPoint(QWidget):
         ax2.set_facecolor('gainsboro')
         ax2.grid(True, which='major', color='gray', linewidth=0.2)
 
-        ax1.axvline(19.5, 0, 1, color='black', linestyle='--', linewidth=1)
-        ax1.axvline(len(x_axes) - 18.5, 0, 1, color='black', linestyle='--', linewidth=1)
-        ax2.axvline(19.5, 0, 1, color='black', linestyle='--', linewidth=1)
-        ax2.axvline(len(x_axes) - 18.5, 0, 1, color='black', linestyle='--', linewidth=1)
+        my_color = 'c'
+        right_vline = len(x_axes) - 18.5 if not buy_time[:8] == df.index[-1].strftime("%Y%m%d%H%M")[:8] else len(x_axes)
+        ax1.axvline(19.5, 0, 1, color=my_color, linestyle='--', linewidth=2)
+        ax1.axvline(right_vline, 0, 1, color=my_color, linestyle='--', linewidth=2)
+        ax2.axvline(19.5, 0, 1, color=my_color, linestyle='--', linewidth=2)
+        ax2.axvline(right_vline, 0, 1, color=my_color, linestyle='--', linewidth=2)
 
         # annotation; 매수가격 설정
         x_ = df.index.to_list().index(pd.to_datetime(buy_time))
@@ -291,7 +327,7 @@ class DealPoint(QWidget):
             y_text = y_ + (y_highest - y_lowest) / 4
 
         ax1.annotate(f'매수:{str(int(buy_price))}', (x_, y_), xytext=(x_text, y_text),
-                     arrowprops=dict(edgecolor='c', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
+                     arrowprops=dict(edgecolor='black', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='r', alpha=0.2))
 
         # 매도가격 annotation
@@ -304,7 +340,7 @@ class DealPoint(QWidget):
             y2_text = y2_ + (y_highest - y_lowest) / 3
 
         ax1.annotate(f'매도:{str(int(sell_price))}', (x2_, y2_), xytext=(x2_text, y2_text),
-                     arrowprops=dict(edgecolor='c', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
+                     arrowprops=dict(edgecolor='black', facecolor='yellow', shrink=0.05, width=0.5, headwidth=5, alpha=0.7),
                      fontsize=12, bbox=dict(facecolor='b', alpha=0.2))
 
         def motion_notify_event(event):
@@ -358,10 +394,10 @@ class DealPoint(QWidget):
 
 
 if __name__ == '__main__':
-    exitStrategy = 'CrossDown'
-    # exitStrategy = 'TrailingStop'
+    # exitStrategy = 'CrossDown'
+    exitStrategy = 'TrailingStop'
     deal = GoldenCrossDeal(exitStrategy)
     app = QApplication(sys.argv)
-    deal_point = DealPoint()
+    deal_point = DealPoint(exitStrategy)
     app.exec_()
 
