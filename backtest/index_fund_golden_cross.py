@@ -81,7 +81,7 @@ class GoldenCrossDeal:
             profit_sum = self.df_deal['순이익'].sum()
             buy_sum = self.df_deal['매수가'].sum()
             profit_rate = round(profit_sum / buy_sum * 100, 2)
-            print(f"총이익 {profit_sum} 총매수가 {buy_sum} 이익률 {profit_rate}")
+            print(f"{self.gubun} {sell_strategy} 촐건수 {count} 총이익 {profit_sum} 총매수가 {buy_sum} 이익률 {profit_rate}")
             self.deal_summary.loc[len(self.deal_summary)] = [self.gubun,
                                                              sell_strategy,
                                                              count,
@@ -94,6 +94,7 @@ class GoldenCrossDeal:
 
     def df_append(self, buy_time, buy_price, sell_time, sell_price):
         profit = sell_price - buy_price
+        # print(sell_time, sell_price, profit)
         self.df_deal.loc[len(self.df_deal)] = [buy_time.strftime("%Y%m%d%H%M"),
                                                buy_price,
                                                sell_time.strftime("%Y%m%d%H%M"),
@@ -116,6 +117,7 @@ class GoldenCrossDeal:
         buy_price = None
         sell_time = None
         sell_price = None
+        self.df_deal = pd.DataFrame(columns=['매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '매수시간대'])
 
         # 하루치 분봉만 가지고 트레이딩 한다.
         for day in day_list:
@@ -166,6 +168,7 @@ class GoldenCrossDeal:
         df['signal'] = np.where(df['5이평'] > df['20이평'], 1.0, 0.0)
         df['trigger'] = df['signal'].diff()
 
+        self.df_deal = pd.DataFrame(columns=['매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '매수시간대'])
 
         # 하루치 분봉만 가지고 트레이딩 한다.
 
@@ -178,20 +181,24 @@ class GoldenCrossDeal:
             buy_price = None
             sell_time = None
             sell_price = None
-            df_1day = df.loc[day]
-
-
+            df_1day = df.loc[day]  # 하루치 분봉
             for idx in df_1day.index:   # 하루치 분봉이다.
+
                 if df_1day.at[idx, 'trigger'] == 1 and (position == 0):
                     buy_time = idx
                     buy_price = df_1day.at[idx, 'close']  # 골든크로스가 발생한 봉의 종가에 매수하는 것으로 함.
                     position = position + 1
+                    continue
 
                 if position > 0:
+                    # loss cut 조건 먼저 검토
+                    # print('가격대비', self.gubun, idx, loss_cut, df_1day.at[idx, 'low'], buy_price * (1 - loss_cut/100), buy_price)
                     if df_1day.at[idx, 'low'] < buy_price * (1 - loss_cut/100):
                         sell_time = idx
                         sell_price = buy_price * (1 - loss_cut/100)
                         position = 0
+                        # print(idx, '손절처리', sell_time, sell_price)
+
                         self.df_append(buy_time, buy_price, sell_time, sell_price)
                     else:
                         if (df_1day.at[idx, 'trigger'] == -1):
@@ -222,6 +229,8 @@ class GoldenCrossDeal:
         buy_price = None
         sell_time = None
         sell_price = None
+
+        self.df_deal = pd.DataFrame(columns=['매수시간', '매수가', '매도시간', '매도가', '순이익', '순이익률', '매수시간대'])
 
         for day in day_list:
             if day < '2021-07-01':
@@ -545,24 +554,41 @@ class DealPoint(QWidget):
 
 
 if __name__ == '__main__':
+    '''
     if os.path.exists(DB_GOLDEN_CROSS_SUMMARY):
         os.remove(DB_GOLDEN_CROSS_SUMMARY)
+
+    if os.path.exists(DB_GOLDEN_CROSS_DEAL):
+        os.remove(DB_GOLDEN_CROSS_DEAL)
     deal = GoldenCrossDeal('kospi')
     deal.CrossDown()
-    core = os.cpu_count()
-    with Pool(core) as p:
-        p.map(deal.CrossDown_LossCut, np.arange(0.1, 1.1, 0.1))
+    for i in np.arange(0.1, 1.1, 0.1):
+        deal.CrossDown_LossCut(i)
 
-    with Pool(core) as p:
-        p.map(deal.TrailingStop, np.arange(0.1, 1.1, 0.1))
+    for i in np.arange(0.1, 1.1, 0.1):
+        deal.TrailingStop(i)
+    #
+    # core = os.cpu_count()
+    # with Pool(core) as p:
+    #     p.map(deal.CrossDown_LossCut, np.arange(0.1, 1.1, 0.1))
+    #
+    # with Pool(core) as p:
+    #     p.map(deal.TrailingStop, np.arange(0.1, 1.1, 0.1))
 
     deal2 = GoldenCrossDeal('kosdaq')
     deal2.CrossDown()
-    with Pool(core) as p:
-        p.map(deal2.CrossDown_LossCut, np.arange(0.1, 1.1, 0.1))
+    for i in np.arange(0.1, 1.1, 0.1):
+        deal2.CrossDown_LossCut(i)
 
-    with Pool(core) as p:
-        p.map(deal2.TrailingStop, np.arange(0.1, 1.1, 0.1))
+    for i in np.arange(0.1, 1.1, 0.1):
+        deal2.TrailingStop(i)
+
+    # with Pool(core) as p:
+    #     p.map(deal2.CrossDown_LossCut, np.arange(0.1, 1.1, 0.1))
+    #
+    # with Pool(core) as p:
+    #     p.map(deal2.TrailingStop, np.arange(0.1, 1.1, 0.1))
+    '''
 
     app = QApplication(sys.argv)
     deal_strategy = DealStrategy()
