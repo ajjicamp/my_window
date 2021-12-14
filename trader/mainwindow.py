@@ -1,5 +1,6 @@
-import datetime
+import os
 import sys
+import datetime
 import time
 from PyQt5 import QtWidgets, QtGui, QAxContainer, uic
 from PyQt5.QtCore import Qt
@@ -259,6 +260,8 @@ if __name__ == '__main__':
     L_ACC_jango = Manager().list()       # 계좌보유잔고 종목코드 리스트
     D_GSJM_name = Manager().dict()       # 공유변수 관심종목 {code: name}
     D_GSJM_code = Manager().dict()       # 공유변수 관심종목 {name: code}
+
+    os.system(f)
 
     p = Process(target=Worker, name='name_worker', args=(N_, L_ACC_jango, D_GSJM_name, D_GSJM_code,
                                                          windowQ, workerQ, hogaQ,), daemon=True)

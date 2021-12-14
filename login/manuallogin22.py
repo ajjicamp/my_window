@@ -63,6 +63,7 @@ def manual_login(gubun):
     gubun == 3 : 두번째 계정 모의서버
     gubun == 4 : 두번째 계정 본서버
     """
+
     hwndd = find_window('Open API login')
     if gubun in [1, 3]:
         # 모의서버체크란에 클릭하기
@@ -108,3 +109,22 @@ def auto_on(gubun):
         click_button(win32gui.GetDlgItem(hwndd, 0xD4))
         click_button(win32gui.GetDlgItem(hwndd, 0xD3))
         click_button(win32gui.GetDlgItem(hwndd, 0x01))
+
+       #######
+
+
+def auto_on(gubun):
+    """
+    gubun == 1 : 첫번째 계정
+    gubun == 2 : 두번째 계정
+    """
+    hwnd = find_window('계좌비밀번호')
+    if hwnd != 0:
+        edit = win32gui.GetDlgItem(hwnd, 0xCC)
+        if gubun == 1:
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP1)
+        elif gubun == 2:
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP2)
+        click_button(win32gui.GetDlgItem(hwnd, 0xD4))
+        click_button(win32gui.GetDlgItem(hwnd, 0xD3))
+        click_button(win32gui.GetDlgItem(hwnd, 0x01))

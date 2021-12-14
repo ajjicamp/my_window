@@ -67,8 +67,9 @@ class Worker:
         self.loadDatabase()
         self.CommConnect(block=True)
         self.list_kosd = self.GetCodeListByMarket('10')
-        self.GetCondition()
+        # self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
+        print('accon', self.accno)
         self.GetAccountJango()   # 보유종목이 바뀔때마다 실행되도록 해야 함.
         # self.GetAccountEvaluation()
         self.EventLoop()
