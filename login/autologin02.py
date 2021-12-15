@@ -1,8 +1,9 @@
+# yeongso2로 자동로그인 설정하는 모듈
 import sys
 import os
 import time
 import pythoncom
-from manuallogin22 import *
+from manuallogin02 import *
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer
 from multiprocessing import Process
@@ -13,9 +14,10 @@ openapi_path = 'C:/OpenAPI'
 app = QtWidgets.QApplication(sys.argv)
 
 class Window(QtWidgets.QMainWindow):
-    def __init__(self, num):
+    # def __init__(self, num):
+    def __init__(self):
         super().__init__()
-        self.num = num
+        # self.num = num
         self.bool_connected = False
         self.ocx = QAxWidget('KHOPENAPI.KHOpenAPICtrl.1')
         self.ocx.OnEventConnect.connect(self.OnEventConnect)
@@ -36,14 +38,15 @@ class Window(QtWidgets.QMainWindow):
     def AutoLoginOn(self):
         print('\n 자동 로그인 설정 대기 중 ...\n')
         # QTimer.singleShot(5000, lambda: auto_on(1))
-        QTimer.singleShot(5000, lambda: auto_on(self.num))
+        # QTimer.singleShot(5000, lambda: auto_on(self.num))
+        QTimer.singleShot(5000, lambda: auto_on(2))
         self.ocx.dynamicCall('KOA_Functions(QString, QString)', 'ShowAccountWindow', '')
         print(' 자동 로그인 설정 완료\n')
         print(' 자동 로그인 설정용 프로세스 종료 중 ...')
 
 
 if __name__ == '__main__':
-    num = sys.argv[1]   # num ---> id 1, 모의서버
+    # num = sys.argv[1]   # num ---> id 1, 모의서버
     # num = 2
     login_info = f'{openapi_path}/system/Autologin.dat'
     print('login_info', login_info)
@@ -51,7 +54,8 @@ if __name__ == '__main__':
         os.remove(f'{openapi_path}/system/Autologin.dat')
     print('\n 자동 로그인 설정 파일 삭제 완료\n')
 
-    p = Process(target=Window, args=(num,))
+    # p = Process(target=Window, args=(num,))
+    p = Process(target=Window)
     p.start()
     # p.join()
     print(' 자동 로그인 설정용 프로세스 시작\n')
@@ -63,6 +67,6 @@ if __name__ == '__main__':
     print(' 아이디 및 패스워드 입력 대기 중 ...\n')
     time.sleep(5)
 
-    manual_login(2)
+    manual_login(4)
     # manual_login(1)
     print(' 아이디 및 패스워드 입력 완료\n')
