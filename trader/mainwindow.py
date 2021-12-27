@@ -9,11 +9,11 @@ from worker import Worker
 from writer import Writer
 # from hoga import HogaWindow
 # from Utility import *
-import mmap
-import ctypes
 
+SYSTEM_PATH = "C:/Users/USER/PycharmProjects/my_window"
 # app =QtWidgets.QApplication(sys.argv)
 form_class = uic.loadUiType('C:/Users/USER/PycharmProjects/my_window/trader/mywindow.ui')[0]
+
 
 class MyWindow(QtWidgets.QMainWindow, form_class):
     def __init__(self):
@@ -261,7 +261,9 @@ if __name__ == '__main__':
     D_GSJM_name = Manager().dict()       # 공유변수 관심종목 {code: name}
     D_GSJM_code = Manager().dict()       # 공유변수 관심종목 {name: code}
 
-    os.system(f)
+    # kiwoom 버전처리
+    os.system(f"python {SYSTEM_PATH}/login/versionupdater.py")
+    os.system(f"python {SYSTEM_PATH}/login/autologin02.py")
 
     p = Process(target=Worker, name='name_worker', args=(N_, L_ACC_jango, D_GSJM_name, D_GSJM_code,
                                                          windowQ, workerQ, hogaQ,), daemon=True)

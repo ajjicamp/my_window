@@ -1,6 +1,3 @@
-import sys
-import os
-import time
 import pythoncom
 from manuallogin22 import *
 from PyQt5 import QtWidgets

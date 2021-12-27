@@ -42,7 +42,7 @@ class Worker:
 
         # self.realType = RealType()        # class 인스턴스
 
-        columns_gs = ['종목명', '현재가', '등락율', '전일거래량대비율', '체결강도', '누적거래대금', '시가' , '고가', '저가', '전일종가', '거래량', '체결시간']
+        columns_gs = ['종목명', '현재가', '등락율', '전일거래량대비율', '체결강도', '누적거래대금', '시가', '고가', '저가', '전일종가', '거래량', '체결시간']
         self.chaegyeol_data_df = pd.DataFrame(columns=columns_gs)  # real_data를 저장할 DataFrame 변수
 
         # self.dict_gsjm = {}   # 관심종목 key:code, value:dataframe   #즉, 종목별로 df_table 별도
@@ -67,7 +67,7 @@ class Worker:
         self.loadDatabase()
         self.CommConnect(block=True)
         self.list_kosd = self.GetCodeListByMarket('10')
-        # self.GetCondition()
+        self.GetCondition()
         self.accno = self.GetLoginInfo('ACCNO')    # list
         print('accon', self.accno)
         self.GetAccountJango()   # 보유종목이 바뀔때마다 실행되도록 해야 함.
